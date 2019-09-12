@@ -323,19 +323,18 @@ let
                 ]);
           in  [ 
                 runtimeGhc
-                pkgs.binutils-unwrapped
+                pkgs.binutils-unwrapped # needed by cabal-install
                 pkgs.coreutils
                 pkgs.bash
                 pkgs.git # needed by cabal-install
-                pkgs.gnutar
-                haskellPackages.cabal-install 
+                pkgs.gnutar # needed for vscode
+                haskellPackages.cabal-install
+                haskellPackages.hie-core # TODO: hie-core is deprecated in favour of ghcide
               ];
         
         runAsRoot = ''
           #!${pkgs.stdenv.shell}
-          ${pkgs.dockerTools.shadowSetup}
-          groupadd --system vscode
-          useradd --system --gid vscode vscode
+          echo root:x:0:0:root:/root:/bin/bash > /etc/passwd
         '';
         config = {
           Cmd = ["bash"];
