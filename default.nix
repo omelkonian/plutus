@@ -327,8 +327,16 @@ let
                 pkgs.coreutils
                 pkgs.bash
                 pkgs.git # needed by cabal-install
+                pkgs.gnutar
                 haskellPackages.cabal-install 
               ];
+        
+        runAsRoot = ''
+          #!${pkgs.stdenv.shell}
+          ${pkgs.dockerTools.shadowSetup}
+          groupadd --system vscode
+          useradd --system --gid vscode vscode
+        '';
         config = {
           Cmd = ["bash"];
         };
