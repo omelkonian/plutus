@@ -336,10 +336,10 @@ let
           #!${pkgs.stdenv.shell}
           ${pkgs.dockerTools.shadowSetup}
           groupadd --system vscode
-          useradd --system --gid vscode vscode
+          useradd --system --gid vscode vscodedoc
         '';
         config = {
-          Cmd = ["bash"];
+          Cmd = ["${pkgs.bash}/bin/bash"];
         };
       };
     };
