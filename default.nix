@@ -329,7 +329,6 @@ let
                 pkgs.git # needed by cabal-install
                 pkgs.gnutar # needed for vscode
                 haskellPackages.cabal-install
-                haskellPackages.hie-core # TODO: hie-core is deprecated in favour of ghcide
               ];
         
         runAsRoot = ''
