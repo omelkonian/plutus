@@ -333,7 +333,9 @@ let
         
         runAsRoot = ''
           #!${pkgs.stdenv.shell}
-          echo root:x:0:0:root:/root:/bin/bash > /etc/passwd
+          ${pkgs.dockerTools.shadowSetup}
+          groupadd --system vscode
+          useradd --system --gid vscode vscode
         '';
         config = {
           Cmd = ["bash"];
