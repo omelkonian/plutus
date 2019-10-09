@@ -109,3 +109,7 @@ instance AdditiveGroup (Ratio Integer) where
 instance MultiplicativeSemigroup (Ratio Integer) where
     {-# INLINABLE (*) #-}
     (x :% y) * (x' :% y') = (x * x') :% (y * y')
+
+instance MultiplicativeMonoid (Ratio Integer) where
+    {-# INLINABLE one #-}
+    one = 1 :% 1
