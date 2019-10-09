@@ -1,11 +1,15 @@
+{-# LANGUAGE FlexibleInstances              #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 module Language.PlutusTx.Ord (Ord(..), Max (..), Min (..)) where
+
+import           GHC.Real (Ratio(..))
 
 import qualified Language.PlutusTx.Builtins  as Builtins
 import           Language.PlutusTx.Data
 import           Language.PlutusTx.Eq
 import           Language.PlutusTx.Semigroup
-import           Prelude                     hiding (Eq (..), Ord (..), Semigroup (..))
+import           Language.PlutusTx.Numeric  (MultiplicativeSemigroup(..))
+import           Prelude                     hiding (Eq (..), Ord (..), Semigroup (..), (*))
 
 {-# ANN module ("HLint: ignore"::String) #-}
 
@@ -109,6 +113,10 @@ instance Ord Data where
     compare I{} _                             = LT
     compare _ I{}                             = GT
     compare (B b) (B b')                      = compare b b'
+
+instance Ord (Ratio Integer) where
+    {-# INLINABLE (<=) #-}
+    (x :% y) <= (x' :% y') = x * y' <= (x' * y)
 
 newtype Max a = Max { getMax :: a }
 

@@ -18,6 +18,7 @@ import           Language.PlutusIR
 import           Language.PlutusIR.MkPir
 
 import           Data.Proxy
+import           GHC.Real (Ratio(..))
 
 -- Derived instances
 
@@ -69,6 +70,7 @@ makeLift ''Maybe
 makeLift ''Either
 makeLift ''[]
 makeLift ''()
+makeLift ''Ratio
 -- include a few tuple instances for convenience
 makeLift ''(,)
 makeLift ''(,,)

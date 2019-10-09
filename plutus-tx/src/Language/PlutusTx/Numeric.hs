@@ -1,8 +1,11 @@
+{-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 module Language.PlutusTx.Numeric (AdditiveSemigroup (..), AdditiveMonoid (..), AdditiveGroup (..), negate, Additive (..), MultiplicativeSemigroup (..), MultiplicativeMonoid (..), Multiplicative (..), Semiring, Ring, Module (..)) where
+
+import           GHC.Real (Ratio(..))
 
 import           Language.PlutusTx.Builtins
 import           Language.PlutusTx.Monoid
@@ -90,3 +93,19 @@ instance MultiplicativeMonoid Integer where
 -- | A module, with a type of scalars which can be used to scale the values.
 class (Ring s, AdditiveGroup v) => Module s v | v -> s where
     scale :: s -> v -> v
+
+instance AdditiveSemigroup (Ratio Integer) where
+    {-# INLINABLE (+) #-}
+    (x :% y) + (x' :% y') = ((x * y') + (x' * y)) :% (y * y')
+
+instance AdditiveMonoid (Ratio Integer) where
+    {-# INLINABLE zero #-}
+    zero = zero :% one
+
+instance AdditiveGroup (Ratio Integer) where
+    {-# INLINABLE (-) #-}
+    (x :% y) - (x' :% y') = ((x * y') - (x' * y)) :% (y * y')
+
+instance MultiplicativeSemigroup (Ratio Integer) where
+    {-# INLINABLE (*) #-}
+    (x :% y) * (x' :% y') = (x * x') :% (y * y')

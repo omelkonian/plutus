@@ -6,6 +6,7 @@
 module Language.PlutusTx.IsData where
 
 import           Data.ByteString.Lazy as BSL
+import           GHC.Real (Ratio(..))
 
 import Prelude (Maybe(..), Either(..), Bool(..), Integer)
 
@@ -87,3 +88,10 @@ instance IsData a => IsData [a] where
     fromData (Constr i []) | i == 0 = Just []
     fromData (Constr i [hd, td]) | i == 1 = (:) <$> fromData hd <*> fromData td
     fromData _             = Nothing
+
+instance IsData a => IsData (Ratio a) where
+    {-# INLINABLE toData #-}
+    toData (n :% d) = Constr 0 [toData n, toData d]
+    {-# INLINABLE fromData #-}
+    fromData (Constr i [n, d]) | i == 0 = (:%) <$> fromData n <*> fromData d
+    fromData _ = Nothing

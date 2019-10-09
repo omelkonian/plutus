@@ -1,10 +1,13 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 module Language.PlutusTx.Ratio(
-    Ratio(..)
+    Ratio
+    , Rational
+    , (%)
     , numerator
     , denominator
     , round
@@ -16,58 +19,27 @@ module Language.PlutusTx.Ratio(
     , gcd
     ) where
 
-import qualified Language.PlutusTx.Applicative as P
-import qualified Language.PlutusTx.IsData      as P
-import qualified Language.PlutusTx.Data        as P
 import qualified Language.PlutusTx.Numeric     as P
 import qualified Language.PlutusTx.Eq          as P
-import qualified Language.PlutusTx.Lift        as P
 import qualified Language.PlutusTx.Ord         as P
-import qualified Language.PlutusTx.Bool        as P
 
 import qualified Language.PlutusTx.Builtins as Builtins
 
-import Language.PlutusTx.Functor
-
 import GHC.Real (Ratio(..))
-import Prelude (Bool, Integer, Maybe(..))
+import Data.Ratio (Rational)
+import Prelude (Bool(True), Integer)
 
-instance P.IsData a => P.IsData (Ratio a) where
-    {-# INLINABLE toData #-}
-    toData (n :% d) = P.Constr 0 [P.toData n, P.toData d]
-    {-# INLINABLE fromData #-}
-    fromData (P.Constr i [n, d]) | i P.== 0 = (:%) <$> P.fromData n P.<*> P.fromData d
-    fromData _ = Nothing
+infixl 7  %
 
-instance P.Eq a => P.Eq (Ratio a) where
-    {-# INLINABLE (==) #-}
-    (n1 :% d1) == (n2 :% d2) = n1 P.== n2 P.&& d1 P.== d2
+-- |Forms the ratio of two integral numbers.
+(%) :: Integer -> Integer -> Ratio Integer
+x % y = reduce (x P.* signum y) (abs y)
 
-instance P.AdditiveSemigroup (Ratio Integer) where
-    {-# INLINABLE (+) #-}
-    (x :% y) + (x' :% y') = ((x P.* y') P.+ (x' P.* y)) :% (y P.* y')
-
-instance P.AdditiveMonoid (Ratio Integer) where
-    {-# INLINABLE zero #-}
-    zero = P.zero :% P.one
-
-instance P.AdditiveGroup (Ratio Integer) where
-    {-# INLINABLE (-) #-}
-    (x :% y) - (x' :% y') = ((x P.* y') P.- (x' P.* y)) :% (y P.* y')
-
-instance P.MultiplicativeSemigroup (Ratio Integer) where
-    {-# INLINABLE (*) #-}
-    (x :% y) * (x' :% y') = (x P.* x') :% (y P.* y')
-
-instance P.Ord (Ratio Integer) where
-    {-# INLINABLE (<=) #-}
-    (x :% y) <= (x' :% y') = x P.* y' P.<= (x' P.* y)
-
-P.makeLift ''Ratio
-
+-- | Extract the numerator of the ratio in reduced form: the numerator and denominator have no common factor and the denominator is positive.
 numerator :: Ratio a -> a
 numerator (n :% _) = n
 
+-- | Extract the denominator of the ratio in reduced form: the numerator and denominator have no common factor and the denominator is positive.
 denominator :: Ratio a -> a
 denominator (_ :% d) = d
 
@@ -78,13 +50,6 @@ denominator (_ :% d) = d
 gcd :: Integer -> Integer -> Integer
 gcd a 0  =  a
 gcd a b  =  gcd b (a `Builtins.remainderInteger` b)
-
--- | 'reduce' is a subsidiary function used only in this module.
--- It normalises a ratio by dividing both numerator and denominator by
--- their greatest common divisor.
-reduce :: Integer -> Integer -> Ratio Integer
-reduce _ 0 =  Builtins.error ()
-reduce x y =  (x `Builtins.divideInteger` d) :% (y `Builtins.divideInteger` d) where d = gcd x y
 
 -- | truncate @x@ returns the integer nearest @x@ between zero and @x@
 truncate :: Ratio Integer -> Integer
@@ -104,25 +69,37 @@ truncate (n :% d) = n `Builtins.divideInteger` d
 properFraction :: Ratio Integer -> (Integer, Ratio Integer)
 properFraction (n :% d) = (q, r :% d) where (q, r) = quotRem n d
 
+-- | simultaneous quot and rem
 quotRem :: Integer -> Integer -> (Integer, Integer)
 quotRem x y = (x `Builtins.divideInteger` y, x `Builtins.remainderInteger` y)
   -- no quotRem builtin :(
 
+-- | 0.5
 half :: Ratio Integer
 half = 1 :% 2
 
-absR :: Ratio Integer -> Ratio Integer
-absR (n :% d) = (abs n :% abs d)
+-- | From GHC.Real
+-- | 'reduce' is a subsidiary function used only in this module.
+-- It normalises a ratio by dividing both numerator and denominator by
+-- their greatest common divisor.
+reduce :: Integer -> Integer -> Ratio Integer
+reduce _ 0 =  Builtins.error ()
+reduce x y =  (x `Builtins.divideInteger` d) :% (y `Builtins.divideInteger` d) where d = gcd x y
 
+abs :: (P.Ord n, P.AdditiveGroup n) => n -> n
 abs x = if x P.< P.zero then (P.negate x) else x
 
-signum :: Ratio Integer -> Integer
-signum (0 :% _) = 0
-signum d = if d P.> P.zero then 1 else -1
+signum :: (P.AdditiveMonoid a, P.Ord a) => a -> Integer
+signum d
+        | d P.== P.zero = 0
+        | d P.> P.zero  = 1
+        | True          = -1
 
 even :: Integer -> Bool
 even x = (x `Builtins.remainderInteger` 2) P.== P.zero
 
+-- | From GHC.Real
+-- | @round x@ returns the nearest integer to @x@; the even integer if @x@ is equidistant between two integers
 round :: Ratio Integer -> Integer
 round x =
   let (n, r) = properFraction x
@@ -132,8 +109,3 @@ round x =
       0  -> if even n then n else m
       1  -> m
       _  -> Builtins.error ()
-
-lcm :: Integer -> Integer -> Integer
-lcm _ 0         =  0
-lcm 0 _         =  0
-lcm x y         =  abs ((x `Builtins.divideInteger` (gcd x y)) P.* y)

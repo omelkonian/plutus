@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 module Language.PlutusTx.Eq (Eq(..), (/=)) where
 
+import GHC.Real (Ratio(..))
+
 import           Language.PlutusTx.Bool
 import qualified Language.PlutusTx.Builtins as Builtins
 import           Language.PlutusTx.Data
@@ -67,3 +69,8 @@ instance Eq Data where
     I i == I i' = i == i'
     B b == B b' = b == b'
     _ == _ = False
+
+instance Eq a => Eq (Ratio a) where
+    {-# INLINABLE (==) #-}
+    (n1 :% d1) == (n2 :% d2) = n1 == n2 && d1 == d2
+    
