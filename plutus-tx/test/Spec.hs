@@ -3,6 +3,7 @@ module Main (main) where
 import qualified Lift.Spec   as Lift
 import qualified Plugin.Spec as Plugin
 import qualified TH.Spec     as TH
+import qualified StdLib.Spec as Lib
 
 import           Common
 
@@ -16,4 +17,5 @@ tests = testGroup "tests" <$> sequence [
     Plugin.tests
   , Lift.tests
   , TH.tests
+  , Lib.tests
   ]

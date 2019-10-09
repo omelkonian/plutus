@@ -31,18 +31,24 @@ import Prelude (Bool(True), Integer)
 
 infixl 7  %
 
--- |Forms the ratio of two integral numbers.
+{-# INLINABLE (%) #-}
+-- | Forms the ratio of two integral numbers.
 (%) :: Integer -> Integer -> Ratio Integer
 x % y = reduce (x P.* signum y) (abs y)
 
+
+{-# INLINABLE numerator #-}
 -- | Extract the numerator of the ratio in reduced form: the numerator and denominator have no common factor and the denominator is positive.
 numerator :: Ratio a -> a
 numerator (n :% _) = n
 
+
+{-# INLINABLE denominator #-}
 -- | Extract the denominator of the ratio in reduced form: the numerator and denominator have no common factor and the denominator is positive.
 denominator :: Ratio a -> a
 denominator (_ :% d) = d
 
+{-# INLINABLE gcd #-}
 -- From GHC.Real
 -- | @'gcd' x y@ is the non-negative factor of both @x@ and @y@ of which
 -- every common factor of @x@ and @y@ is also a factor; for example
@@ -51,10 +57,13 @@ gcd :: Integer -> Integer -> Integer
 gcd a 0  =  a
 gcd a b  =  gcd b (a `Builtins.remainderInteger` b)
 
+{-# INLINABLE truncate #-}
 -- | truncate @x@ returns the integer nearest @x@ between zero and @x@
 truncate :: Ratio Integer -> Integer
 truncate (n :% d) = n `Builtins.divideInteger` d
 
+
+{-# INLINABLE properFraction #-}
 -- From GHC.Real
 -- | The function 'properFraction' takes a real fractional number @x@
 -- and returns a pair @(n,f)@ such that @x = n+f@, and:
@@ -69,15 +78,19 @@ truncate (n :% d) = n `Builtins.divideInteger` d
 properFraction :: Ratio Integer -> (Integer, Ratio Integer)
 properFraction (n :% d) = (q, r :% d) where (q, r) = quotRem n d
 
+{-# INLINABLE quotRem #-}
 -- | simultaneous quot and rem
 quotRem :: Integer -> Integer -> (Integer, Integer)
 quotRem x y = (x `Builtins.divideInteger` y, x `Builtins.remainderInteger` y)
   -- no quotRem builtin :(
 
+{-# INLINABLE half #-}
 -- | 0.5
 half :: Ratio Integer
 half = 1 :% 2
 
+
+{-# INLINABLE reduce #-}
 -- | From GHC.Real
 -- | 'reduce' is a subsidiary function used only in this module.
 -- It normalises a ratio by dividing both numerator and denominator by
@@ -86,18 +99,22 @@ reduce :: Integer -> Integer -> Ratio Integer
 reduce _ 0 =  Builtins.error ()
 reduce x y =  (x `Builtins.divideInteger` d) :% (y `Builtins.divideInteger` d) where d = gcd x y
 
+{-# INLINABLE abs #-}
 abs :: (P.Ord n, P.AdditiveGroup n) => n -> n
 abs x = if x P.< P.zero then (P.negate x) else x
 
+{-# INLINABLE signum #-}
 signum :: (P.AdditiveMonoid a, P.Ord a) => a -> Integer
 signum d
         | d P.== P.zero = 0
         | d P.> P.zero  = 1
         | True          = -1
 
+{-# INLINABLE even #-}
 even :: Integer -> Bool
 even x = (x `Builtins.remainderInteger` 2) P.== P.zero
 
+{-# INLINABLE round #-}
 -- | From GHC.Real
 -- | @round x@ returns the nearest integer to @x@; the even integer if @x@ is equidistant between two integers
 round :: Ratio Integer -> Integer
