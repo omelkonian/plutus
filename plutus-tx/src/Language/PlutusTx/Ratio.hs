@@ -70,6 +70,10 @@ instance P.MultiplicativeSemigroup (Ratio Integer) where
     {-# INLINABLE (*) #-}
     (x :% y) * (x' :% y') = (x P.* x') :% (y P.* y')
 
+instance P.MultiplicativeMonoid (Ratio Integer) where
+    {-# INLINABLE one #-}
+    one = 1 :% 1
+
 instance P.Ord (Ratio Integer) where
     {-# INLINABLE (<=) #-}
     (x :% y) <= (x' :% y') = x P.* y' P.<= (x' P.* y)
@@ -101,8 +105,9 @@ denominator (_ :% d) = d
 -- every common factor of @x@ and @y@ is also a factor; for example
 -- @'gcd' 4 2 = 2@, @'gcd' (-4) 6 = 2@, @'gcd' 0 4@ = @4@. @'gcd' 0 0@ = @0@.
 gcd :: Integer -> Integer -> Integer
-gcd a 0  =  a
-gcd a b  =  gcd b (a `Builtins.remainderInteger` b)
+gcd a b
+    | b P.== P.zero = a
+    | True          = gcd b (a `Builtins.remainderInteger` b)
 
 {-# INLINABLE truncate #-}
 -- | truncate @x@ returns the integer nearest @x@ between zero and @x@
@@ -143,8 +148,11 @@ half = 1 :% 2
 -- It normalises a ratio by dividing both numerator and denominator by
 -- their greatest common divisor.
 reduce :: Integer -> Integer -> Ratio Integer
-reduce _ 0 =  Builtins.error ()
-reduce x y =  (x `Builtins.divideInteger` d) :% (y `Builtins.divideInteger` d) where d = gcd x y
+reduce x y
+    | y P.== 0 = Builtins.error ()
+    | True     = 
+        let d = gcd x y in
+        (x `Builtins.divideInteger` d) :% (y `Builtins.divideInteger` d)
 
 {-# INLINABLE abs #-}
 abs :: (P.Ord n, P.AdditiveGroup n) => n -> n
@@ -165,11 +173,12 @@ even x = (x `Builtins.remainderInteger` 2) P.== P.zero
 -- | From GHC.Real
 -- | @round x@ returns the nearest integer to @x@; the even integer if @x@ is equidistant between two integers
 round :: Ratio Integer -> Integer
-round x =
-  let (n, r) = properFraction x
-      m      = if r P.< P.zero then n P.- P.one else n P.+ P.one
-  in case signum (abs r P.- half) of
-      -1 -> n
-      0  -> if even n then n else m
-      1  -> m
-      _  -> Builtins.error ()
+round x
+    | sig P.== P.negate P.one = n
+    | sig P.== P.zero         = if even n then n else m
+    | sig P.== P.one          = m
+    | True        = Builtins.error()
+    where (n, r) = properFraction x
+          m      = if r P.< P.zero then n P.- P.one else n P.+ P.one
+          sig    = signum (abs r P.- half)
+
