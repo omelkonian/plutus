@@ -14,11 +14,11 @@ import           Language.PlutusTx.Code
 import qualified Language.PlutusTx.Lift     as Lift
 import           Language.PlutusTx.Plugin
 
-roundPlc :: CompiledCode (Rational -> Integer)
+roundPlc :: CompiledCode (Ratio.Rational -> Integer)
 roundPlc = plc @"roundPlc" Ratio.round
 
 tests :: TestNested
 tests = 
   testNested "stdlib"
-    [ goldenEval "ratioInterop" [ getPlc roundPlc, Lift.liftProgram (3.75::Rational) ]
+    [ goldenEval "ratioInterop" [ getPlc roundPlc, Lift.liftProgram (Ratio.fromGHCRatio 3.75) ]
     ]

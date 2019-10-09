@@ -1,9 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
-{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
+{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
+{-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 module Language.PlutusTx.Ratio(
     Ratio
     , Rational
@@ -14,20 +14,67 @@ module Language.PlutusTx.Ratio(
     , truncate
     , properFraction
     , half
+    , fromGHCRatio
     -- * Misc.
     , quotRem
     , gcd
     ) where
 
+import qualified Language.PlutusTx.Applicative as P
+import qualified Language.PlutusTx.IsData      as P
+import qualified Language.PlutusTx.Data        as P
 import qualified Language.PlutusTx.Numeric     as P
 import qualified Language.PlutusTx.Eq          as P
+import qualified Language.PlutusTx.Lift        as P
 import qualified Language.PlutusTx.Ord         as P
+import qualified Language.PlutusTx.Bool        as P
+
+import Language.PlutusTx.Functor
 
 import qualified Language.PlutusTx.Builtins as Builtins
 
-import GHC.Real (Ratio(..))
-import Data.Ratio (Rational)
-import Prelude (Bool(True), Integer)
+import qualified Data.Ratio as Ratio
+import Prelude (Bool(True), Integer, Maybe(..))
+
+data Ratio a = a :% a
+
+type Rational = Ratio Integer
+
+fromGHCRatio :: Ratio.Rational -> Ratio Integer
+fromGHCRatio r = (Ratio.numerator r) :% (Ratio.denominator r)
+
+instance P.IsData a => P.IsData (Ratio a) where
+    {-# INLINABLE toData #-}
+    toData (n :% d) = P.Constr 0 [P.toData n, P.toData d]
+    {-# INLINABLE fromData #-}
+    fromData (P.Constr i [n, d]) | i P.== 0 = (:%) <$> P.fromData n P.<*> P.fromData d
+    fromData _ = Nothing
+
+instance P.Eq a => P.Eq (Ratio a) where
+    {-# INLINABLE (==) #-}
+    (n1 :% d1) == (n2 :% d2) = n1 P.== n2 P.&& d1 P.== d2
+
+instance P.AdditiveSemigroup (Ratio Integer) where
+    {-# INLINABLE (+) #-}
+    (x :% y) + (x' :% y') = ((x P.* y') P.+ (x' P.* y)) :% (y P.* y')
+
+instance P.AdditiveMonoid (Ratio Integer) where
+    {-# INLINABLE zero #-}
+    zero = P.zero :% P.one
+
+instance P.AdditiveGroup (Ratio Integer) where
+    {-# INLINABLE (-) #-}
+    (x :% y) - (x' :% y') = ((x P.* y') P.- (x' P.* y)) :% (y P.* y')
+
+instance P.MultiplicativeSemigroup (Ratio Integer) where
+    {-# INLINABLE (*) #-}
+    (x :% y) * (x' :% y') = (x P.* x') :% (y P.* y')
+
+instance P.Ord (Ratio Integer) where
+    {-# INLINABLE (<=) #-}
+    (x :% y) <= (x' :% y') = x P.* y' P.<= (x' P.* y)
+
+P.makeLift ''Ratio
 
 infixl 7  %
 
