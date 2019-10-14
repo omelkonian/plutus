@@ -1,5 +1,6 @@
 packages: language-plutus-core
           marlowe
+          marlowe-symbolic
           plutus-core-interpreter
           plutus-emulator
           plutus-exe
