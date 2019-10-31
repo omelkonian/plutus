@@ -93,6 +93,12 @@ tests =
 
         , let smallTx = mempty & Tx.outputs .~ [Tx.pubKeyTxOut (Ada.lovelaceValueOf 10) (walletPubKey (Wallet 2))]
           in cp "handle several blockchain events"
+            (pure ())
+            (emulatorLog (const False) "")
+            (addBlocks 1 >> addBlocks 1)
+
+        , let smallTx = mempty & Tx.outputs .~ [Tx.pubKeyTxOut (Ada.lovelaceValueOf 10) (walletPubKey (Wallet 2))]
+          in cp "handle several blockchain events"
                 (writeTx smallTx >> writeTx smallTx)
                 (assertDone w1 (const True) "all blockchain events should be processed"
                 /\ assertNoFailedTransactions
