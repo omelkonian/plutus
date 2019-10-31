@@ -38,6 +38,7 @@ import           Data.Foldable             (fold, foldl', traverse_)
 import qualified Data.Map                  as Map
 import           Data.Semigroup            (Semigroup)
 import qualified Data.Set                  as Set
+import           Data.Text.Prettyprint.Doc (Pretty (pretty), viaShow)
 import           GHC.Generics              (Generic)
 import           Language.PlutusTx         (toData)
 import qualified Language.PlutusTx.Numeric as P
@@ -111,6 +112,9 @@ data ValidationError =
 
 instance FromJSON ValidationError
 instance ToJSON ValidationError
+
+instance Pretty ValidationError where
+    pretty = viaShow
 
 -- | A monad for running transaction validation inside, which is an instance of 'ValidationMonad'.
 newtype Validation a = Validation { _runValidation :: (ReaderT UtxoIndex (Either ValidationError)) a }
