@@ -46,7 +46,8 @@ live :: (MonadReader Liveness m, PLC.HasUnique n unique) => n -> m Bool
 live n =
     let
         u = coerce $ n ^. PLC.unique
-    in asks $ Set.member (Deps.Variable u)
+        s = n ^. PLC.str
+    in asks $ Set.member (Deps.Variable (u,s))
 
 liveBinding
     :: (MonadReader Liveness m, PLC.HasUnique (name a) PLC.TermUnique, PLC.HasUnique (tyname a) PLC.TypeUnique)

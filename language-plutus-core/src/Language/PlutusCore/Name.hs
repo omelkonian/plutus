@@ -101,14 +101,21 @@ newtypeUnique = _Wrapped' . unique . coerced
 -- | Types which have a 'Unique' attached to them, mostly names.
 class Coercible Unique unique => HasUnique a unique | a -> unique where
     unique :: Lens' a unique
+    str :: Lens' a T.Text
 
 instance HasUnique (Name ann) TermUnique where
     unique = lens g s where
         g = TermUnique . nameUnique
         s n (TermUnique u) = n{nameUnique=u}
+    str = lens g s where
+        g = nameString
+        s n u = n{nameString=u}
 
 instance HasUnique (TyName ann) TypeUnique where
     unique = newtypeUnique
+    str = lens g s where
+        g = nameString . unTyName
+        s n u = TyName $ (unTyName n){nameString=u}
 
 -- | A mapping from uniques to values of type @a@.
 newtype UniqueMap unique a = UniqueMap

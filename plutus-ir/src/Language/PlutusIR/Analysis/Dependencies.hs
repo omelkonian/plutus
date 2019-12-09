@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE OverloadedStrings       #-}
 -- | Functions for computing the dependency graph of variables within a term or type. A "dependency" between
 -- two nodes "A depends on B" means that B cannot be removed from the program without also removing A.
 module Language.PlutusIR.Analysis.Dependencies (Node (..), DepGraph, runTermDeps, runTypeDeps) where
@@ -18,11 +19,13 @@ import           Control.Monad.Reader
 import qualified Algebra.Graph.Class               as G
 import qualified Data.Set                          as Set
 
+import qualified Data.Text
+
 -- | A node in a dependency graph. Either a specific 'PLC.Unique', or a specific
 -- node indicating the root of the graph. We need the root node because when computing the
 -- dependency graph of, say, a term, there will not be a binding for the term itself which
 -- we can use to represent it in the graph.
-data Node = Variable PLC.Unique | Root deriving (Show, Eq, Ord)
+data Node = Variable (PLC.Unique,Data.Text.Text) | Root deriving (Show, Eq, Ord)
 
 -- | A constraint requiring @g@ to be a 'G.Graph' (so we can compute e.g. a @Relation@ from it), whose
 -- vertices are 'Node's.
@@ -62,7 +65,7 @@ runTypeDeps t = runReader (typeDeps t) Root
 -- | Record some dependencies on the current node.
 recordDeps
     :: (DepGraph g, MonadReader Node m)
-    => [PLC.Unique]
+    => [(PLC.Unique,Data.Text.Text)]
     -> m g
 recordDeps us = do
     current <- ask
@@ -74,7 +77,7 @@ withCurrent
     => n
     -> m g
     -> m g
-withCurrent n = local (const $ Variable $ n ^. PLC.unique . coerced)
+withCurrent n = local (const $ Variable (n ^. PLC.unique . coerced, n ^. PLC.str))
 
 bindingDeps
     :: (DepGraph g, MonadReader Node m, PLC.HasUnique (tyname a) PLC.TypeUnique, PLC.HasUnique (name a) PLC.TermUnique)
@@ -96,8 +99,8 @@ bindingDeps b = case b of
         -- All the datatype bindings depend on each other since they can't be used separately. Consider
         -- the identity function on a datatype type - it only uses the type variable, but the whole definition
         -- will therefore be kept, and so we must consider any uses in e.g. the constructors as live.
-        let tyus = fmap (\n -> n ^. PLC.unique . coerced) $ tyVarDeclName d : fmap tyVarDeclName tvs
-        let tus = fmap (\n -> n ^. PLC.unique . coerced) $ destr : fmap varDeclName constrs
+        let tyus = fmap (\n -> (n ^. PLC.unique . coerced, "mpla")) $ tyVarDeclName d : fmap tyVarDeclName tvs
+        let tus = fmap (\n -> (n ^. PLC.unique . coerced, "mpla")) $ destr : fmap varDeclName constrs
         let localDeps = G.clique (fmap Variable $ tyus ++ tus)
         pure $ G.overlays $ [vDeps] ++ tvDeps ++ cstrDeps ++ [localDeps]
 
@@ -125,7 +128,7 @@ termDeps = \case
         bGraphs <- traverse bindingDeps bs
         bodyGraph <- termDeps t
         pure $ G.overlays $ bGraphs ++ [bodyGraph]
-    Var _ n -> recordDeps [n ^. PLC.unique . coerced]
+    Var _ n -> recordDeps [(n ^. PLC.unique . coerced, n ^. PLC.str)]
     x -> do
         tds <- traverse termDeps (x ^.. termSubterms)
         tyds <- traverse typeDeps (x ^.. termSubtypes)

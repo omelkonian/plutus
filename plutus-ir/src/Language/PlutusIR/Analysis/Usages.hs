@@ -15,21 +15,23 @@ import           Data.Foldable
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
 
+import qualified Data.Text
+
 -- | Variable uses, as a map from the 'PLC.Unique' to its usage count. Unused variables may be missing
 -- or have usage count 0.
-type Usages = Map.Map PLC.Unique Int
+type Usages = Map.Map (PLC.Unique,Data.Text.Text) Int
 
 addUsage :: (PLC.HasUnique n unique) => n -> Usages -> Usages
 addUsage n usages =
     let
         u = coerce $ n ^. PLC.unique
-        old = Map.findWithDefault 0 u usages
-    in Map.insert u (old+1) usages
+        old = Map.findWithDefault 0 (u, n ^. PLC.str) usages
+    in Map.insert (u,n ^. PLC.str) (old+1) usages
 
 isUsed :: (PLC.HasUnique n unique) => n -> Usages -> Bool
-isUsed n usages = Map.findWithDefault 0 (n ^. PLC.unique . coerced) usages > 0
+isUsed n usages = Map.findWithDefault 0 (n ^. PLC.unique . coerced, n ^. PLC.str) usages > 0
 
-allUsed :: Usages -> Set.Set PLC.Unique
+allUsed :: Usages -> Set.Set (PLC.Unique,Data.Text.Text)
 allUsed usages = Map.keysSet $ Map.filter (> 0) usages
 
 -- | Compute the 'Usages' for a 'Term'.
