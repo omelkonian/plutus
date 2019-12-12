@@ -18,15 +18,24 @@ import           Control.Monad.Reader
 
 import qualified Algebra.Graph.Class               as G
 import qualified Data.Set                          as Set
+import qualified Data.Map as M
+import Control.Monad.Trans.State
 
-import Language.PlutusIR.Parser
+import qualified Algebra.Graph.AdjacencyMap               as AM
+import qualified Algebra.Graph.AdjacencyMap.Algorithm            as AM (isAcyclic)
 import qualified Data.Text
+
+import Language.PlutusIR.Transform.Rename () -- for instance
 
 -- | A node in a dependency graph. Either a specific 'PLC.Unique', or a specific
 -- node indicating the root of the graph. We need the root node because when computing the
 -- dependency graph of, say, a term, there will not be a binding for the term itself which
 -- we can use to represent it in the graph.
-data Node = Variable (PLC.Unique,Data.Text.Text) | Root deriving (Show, Eq, Ord)
+data Node = LetOrFree (PLC.Unique,Data.Text.Text)
+          | SmallOrBigLambda (PLC.Unique,Data.Text.Text)
+          | Root
+          | Top
+          deriving (Show, Eq, Ord)
 
 -- | A constraint requiring @g@ to be a 'G.Graph' (so we can compute e.g. a @Relation@ from it), whose
 -- vertices are 'Node's.
@@ -45,10 +54,11 @@ runTermDeps
     :: (DepGraph g, PLC.HasUnique (tyname a) PLC.TypeUnique, PLC.HasUnique (name a) PLC.TermUnique)
     => Term tyname name a
     -> g
-runTermDeps t = runReader (termDeps t) (Root,Nothing)
+runTermDeps t = runReader (termDeps t) (Root,[])
 
--- the reader context enhanced by a direct enclosing scope
-type Ctx = (Node, Maybe (PLC.Unique,Data.Text.Text))
+-- the reader context enhanced by a full enclosing lambda scope
+type Ctx = (Node, Scope)
+type Scope = [(PLC.Unique,Data.Text.Text)]
 
 -- | Compute the dependency graph of a 'Type'. The 'Root' node will correspond to the type itself.
 --
@@ -64,7 +74,8 @@ runTypeDeps
     :: (DepGraph g, PLC.HasUnique (tyname a) PLC.TypeUnique)
     => Type tyname a
     -> g
-runTypeDeps t = runReader (typeDeps t) (Root,Nothing)
+runTypeDeps t = runReader (typeDeps t) (Root,[])
+
 
 -- | Record some dependencies on the current node.
 recordDeps
@@ -72,8 +83,8 @@ recordDeps
     => [(PLC.Unique,Data.Text.Text)]
     -> m g
 recordDeps us = do
-    (current,_) <- ask
-    pure $ G.connect (G.vertices [current]) (G.vertices (fmap Variable us))
+    (current,scope) <- ask
+    pure $ G.connect (G.vertices [current]) (G.vertices (fmap (\ v -> (if v `elem` scope then SmallOrBigLambda else LetOrFree) v) us))
 
 -- | Process the given action with the given name as the current node.
 withLet
@@ -81,14 +92,14 @@ withLet
     => n
     -> m g
     -> m g
-withLet n = local $ set _1 $ Variable (n ^. PLC.unique . coerced, n ^. PLC.str)
+withLet n = local $ set _1 $ LetOrFree (n ^. PLC.unique . coerced, n ^. PLC.str)
 
 withScope
     :: (MonadReader Ctx m, PLC.HasUnique n u)
     => n
     -> m g
     -> m g
-withScope n = local $ set _2 $ Just (n ^. PLC.unique . coerced, n ^. PLC.str)
+withScope n = local $ over _2 ((n ^. PLC.unique . coerced, n ^. PLC.str) :)
 
 
 bindingDeps
@@ -113,7 +124,7 @@ bindingDeps b = case b of
         -- will therefore be kept, and so we must consider any uses in e.g. the constructors as live.
         let tyus = fmap (\n -> (n ^. PLC.unique . coerced, "mpla")) $ tyVarDeclName d : fmap tyVarDeclName tvs
         let tus = fmap (\n -> (n ^. PLC.unique . coerced, "mpla")) $ destr : fmap varDeclName constrs
-        let localDeps = G.clique (fmap Variable $ tyus ++ tus)
+        let localDeps = G.clique (fmap LetOrFree $ tyus ++ tus)
         pure $ G.overlays $ [vDeps] ++ tvDeps ++ cstrDeps ++ [localDeps]
 
 varDeclDeps
@@ -137,12 +148,12 @@ termDeps
     -> m g
 termDeps = \case
     LamAbs _ n ty t -> do
-      newScopeEdge <- maybe G.empty (G.edge (Variable (n ^. PLC.unique . coerced, n ^. PLC.str)) . Variable) <$> asks snd
+      newScopeEdge <- G.edge (SmallOrBigLambda (n ^. PLC.unique . coerced, n ^. PLC.str)) . (\case (v:_) -> SmallOrBigLambda v; _ -> Top) . snd <$> ask
       typGraph <- withScope n $ typeDeps ty
       tGraph <- withScope n $ termDeps t
       pure $ G.overlays [newScopeEdge,typGraph,tGraph]
     TyAbs _ n _ki t -> do
-      newScopeEdge <- maybe G.empty (G.edge (Variable (n ^. PLC.unique . coerced, n ^. PLC.str)) . Variable) <$> asks snd
+      newScopeEdge <- G.edge (SmallOrBigLambda (n ^. PLC.unique . coerced, n ^. PLC.str)) . (\case (v:_) -> SmallOrBigLambda v; _ -> Top) . snd <$> ask
       bodyGraph <- withScope n $ termDeps t
       pure $ newScopeEdge `G.overlay` bodyGraph
     Let _ _ bs t -> do
@@ -166,3 +177,46 @@ typeDeps ty =
     -- need to find all the used variables and mark them as dependencies of the current node.
     let used = Usages.allUsed $ Usages.runTypeUsages ty
     in recordDeps (Set.toList used)
+
+
+
+-- | Implementation taken from: https://github.com/snowleopard/alga/issues/165
+--
+-- It uses the 'AM.transitiveClosure' to compute the transitive reduction.
+-- Note: there may be a faster implementation by using 'AM.dfsForest'
+transitiveReduction :: Ord a => AM.AdjacencyMap a -> Maybe (AM.AdjacencyMap a)
+transitiveReduction g
+    | not (AM.isAcyclic g) = Nothing
+    | otherwise         = Just $ AM.vertices vs `AM.overlay` AM.edges es
+  where
+    vs = AM.vertexList g
+    es = filter (not . transitive) (AM.edgeList g)
+    jumpGraph         = let t = AM.transitiveClosure g in AM.compose t t
+    transitive (x, y) = AM.hasEdge x y jumpGraph
+
+
+cleanAndCollectLets :: (PLC.HasUnique (tyname a) PLC.TypeUnique, PLC.HasUnique (name a) PLC.TermUnique)
+                    => Term tyname name a
+                    -> (Term tyname name a
+                       ,M.Map PLC.Unique (a, Recursivity, Binding tyname name a)
+                       )
+cleanAndCollectLets = flip runState M.empty . cleanAndCollectLets'
+  where
+    cleanAndCollectLets' = \case
+      Let a r bs t' -> do
+
+        bs' <- traverse (bindingSubterms cleanAndCollectLets') bs
+
+        let newMap = M.fromList $
+              fmap (\ b -> (bindName b, (a,r,b)))
+              bs'
+        modify (M.union newMap)
+
+        cleanAndCollectLets' t'
+
+      t -> termSubterms cleanAndCollectLets' t
+
+    -- TODO: maybe remove the boilerplate by having a lens "name" for a Binding
+    bindName = \case TermBind _ _ (VarDecl _ n _) _ -> n ^. PLC.unique . coerced
+                     TypeBind _ (TyVarDecl _ n _) rhs -> n ^. PLC.unique . coerced
+                     DatatypeBind _ (Datatype _ d tvs destr constrs) -> error "TODO: not implemented yet"
