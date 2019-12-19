@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# OPTIONS -fplugin Language.PlutusTx.Plugin -fplugin-opt Language.PlutusTx.Plugin:defer-errors -fplugin-opt Language.PlutusTx.Plugin:no-context #-}
 
 module Plugin.Primitives.Spec where
@@ -42,6 +43,7 @@ primitives = testNested "Primitives" [
   , goldenPir "emptyByteString" emptyByteString
   , goldenEval "emptyByteStringApply" [ getPlc emptyByteString, liftProgram Builtins.emptyByteString ]
   , goldenPir "bytestring" bytestring
+  , goldenPir "bytestringMatch" bytestringMatch
   , goldenEval "bytestringApply" [ getPlc bytestring, liftProgram ("hello"::Builtins.ByteString) ]
   , goldenEval "sha2_256" [ getPlc sha2, liftProgram ("hello" :: Builtins.ByteString)]
   , goldenEval "equalsByteString" [ getPlc bsEquals, liftProgram ("hello" :: Builtins.ByteString), liftProgram ("hello" :: Builtins.ByteString)]
@@ -101,6 +103,9 @@ emptyByteString = plc @"emptyByteString" (\(x :: Builtins.ByteString) -> x)
 
 bytestring :: CompiledCode (Builtins.ByteString -> Builtins.ByteString)
 bytestring = plc @"bytestring" (\(x::Builtins.ByteString) -> x)
+
+bytestringMatch :: CompiledCode (Builtins.ByteString -> Bool)
+bytestringMatch = plc @"bytestringMatch" (\case { "abc" -> True; _ -> False})
 
 sha2 :: CompiledCode (Builtins.ByteString -> Builtins.ByteString)
 sha2 = plc @"sha2" (\(x :: Builtins.ByteString) -> Builtins.sha2_256 x)
