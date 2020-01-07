@@ -64,7 +64,7 @@ import qualified Language.Plutus.Contract.Record                 as Rec
 import           Language.Plutus.Contract.Request                (Contract (..))
 import           Language.Plutus.Contract.Resumable              (ResumableError)
 import qualified Language.Plutus.Contract.Resumable              as State
-import           Language.Plutus.Contract.Tx                     (UnbalancedTx)
+import           Language.Plutus.Contract.Tx                     (LedgerTxConstraints)
 import           Language.PlutusTx.Lattice
 
 import           Language.Plutus.Contract.Effects.AwaitSlot      (SlotSymbol)
@@ -242,7 +242,7 @@ tx
        , Forall (Output s) Monoid
        , Forall (Output s) Semigroup)
     => Wallet
-    -> (UnbalancedTx -> Bool)
+    -> (LedgerTxConstraints -> Bool)
     -> String
     -> TracePredicate s e a
 tx w flt nm = PredF $ \(_, r) -> do

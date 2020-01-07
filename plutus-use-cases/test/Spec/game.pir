@@ -118,12 +118,12 @@
                         (nonrec)
                         (datatypebind
                           (datatype
-                            (tyvardecl PendingTxOutRef (type))
+                            (tyvardecl TxOutRef (type))
                             
-                            PendingTxOutRef_match
+                            TxOutRef_match
                             (vardecl
-                              PendingTxOutRef
-                              (fun (con bytestring) (fun (con integer) PendingTxOutRef))
+                              TxOutRef
+                              (fun (con bytestring) (fun (con integer) TxOutRef))
                             )
                           )
                         )
@@ -136,7 +136,7 @@
                               PendingTxIn_match
                               (vardecl
                                 PendingTxIn
-                                (fun PendingTxOutRef (fun w (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] [PendingTxIn w])))
+                                (fun TxOutRef (fun w (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] [PendingTxIn w])))
                               )
                             )
                           )
@@ -144,16 +144,14 @@
                             (nonrec)
                             (datatypebind
                               (datatype
-                                (tyvardecl PendingTxOutType (type))
+                                (tyvardecl TxOutType (type))
                                 
-                                PendingTxOutType_match
+                                TxOutType_match
                                 (vardecl
-                                  PubKeyTxOut
-                                  (fun (con bytestring) PendingTxOutType)
+                                  PayToPubKey (fun (con bytestring) TxOutType)
                                 )
                                 (vardecl
-                                  ScriptTxOut
-                                  (fun (con bytestring) (fun (con bytestring) PendingTxOutType))
+                                  PayToScript (fun (con bytestring) TxOutType)
                                 )
                               )
                             )
@@ -161,12 +159,12 @@
                               (nonrec)
                               (datatypebind
                                 (datatype
-                                  (tyvardecl PendingTxOut (type))
+                                  (tyvardecl TxOut (type))
                                   
-                                  PendingTxOut_match
+                                  TxOut_match
                                   (vardecl
-                                    PendingTxOut
-                                    (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun PendingTxOutType PendingTxOut))
+                                    TxOut
+                                    (fun (con bytestring) (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun TxOutType TxOut)))
                                   )
                                 )
                               )
@@ -179,7 +177,7 @@
                                     PendingTx_match
                                     (vardecl
                                       PendingTx
-                                      (fun [List [PendingTxIn [Maybe [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]]]] (fun [List PendingTxOut] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun i (fun [Interval (con integer)] (fun [List [[Tuple2 (con bytestring)] (con bytestring)]] (fun [List [[Tuple2 (con bytestring)] Data]] (fun (con bytestring) [PendingTx i])))))))))
+                                      (fun [List [PendingTxIn [Maybe [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]]]] (fun [List TxOut] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun i (fun [Interval (con integer)] (fun [List [[Tuple2 (con bytestring)] (con bytestring)]] (fun [List [[Tuple2 (con bytestring)] Data]] (fun (con bytestring) [PendingTx i])))))))))
                                     )
                                   )
                                 )

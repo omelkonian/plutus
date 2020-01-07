@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
--- | Balance  `UnbalancedTx` values using the
+-- | Turn 'LedgerTxConstraints' values into transactions using the
 --   wallet API.
 module Language.Plutus.Contract.Wallet(
       balanceWallet
@@ -25,12 +25,12 @@ import           Data.Maybe                  (fromMaybe)
 import qualified Data.Set                    as Set
 import           Data.String                 (IsString (fromString))
 import           Data.Text.Prettyprint.Doc   (Pretty (..))
-import           Language.Plutus.Contract.Tx (UnbalancedTx)
-import qualified Language.Plutus.Contract.Tx as T
+import           Language.Plutus.Contract.Tx (LedgerTxConstraints)
 import qualified Language.PlutusTx.Numeric   as N
 import qualified Language.PlutusTx.Prelude   as P
 import qualified Ledger                      as L
 import qualified Ledger.AddressMap           as AM
+import qualified Ledger.Constraints          as C
 import           Ledger.Tx                   (Tx, TxOut, TxOutRef)
 import qualified Ledger.Tx                   as Tx
 import           Ledger.Value                (Value)
@@ -44,10 +44,11 @@ import qualified Wallet.Emulator             as E
 --   [Unbalanced transactions].
 balanceWallet
     :: (WAPI.MonadWallet m)
-    => UnbalancedTx
+    => LedgerTxConstraints
     -> m Tx
 balanceWallet utx = do
-    WAPI.logMsg $ "Balancing an unbalanced transaction: " <> fromString (show $ pretty utx)
+    WAPI.logMsg $
+        "Balancing an unbalanced transaction: " <> fromString (show $ pretty utx)
     pk <- WAPI.ownPubKey
     addr <- WAPI.watchedAddresses
     let utxo = addr ^. at (L.pubKeyAddress pk) . to (fromMaybe mempty)
@@ -83,12 +84,12 @@ balanceTx
     -> PubKey
     -- ^ Public key, used to balance the right hand side (outputs) of
     --   the transaction.
-    -> UnbalancedTx
+    -> LedgerTxConstraints
     -- ^ The unbalanced transaction
     -> m Tx
-balanceTx utxo pk utx = do
-    let tx0 = T.toLedgerTx utx
-        tx = addMissingValueMoved pk (T.valueMoved utx) tx0
+balanceTx utxo pk constraints = do
+    let tx0 = C.toLedgerTx constraints
+        tx  = addMissingValueMoved pk (C.tcValueMoved constraints) tx0
     (neg, pos) <- Value.split <$> computeBalance tx
 
     tx' <- if Value.isZero pos
@@ -143,9 +144,9 @@ addMissingValueMoved pk vl tx =
 
 -- | Balance an unabalanced transaction, sign it, and submit
 --   it to the chain in the context of a wallet.
-handleTx :: MonadWallet m => SigningProcess -> UnbalancedTx -> m Tx
+handleTx :: MonadWallet m => SigningProcess -> LedgerTxConstraints -> m Tx
 handleTx p utx =
-    balanceWallet utx >>= addSignatures p (T.requiredSignatures utx) >>= WAPI.signTxAndSubmit
+    balanceWallet utx >>= addSignatures p (C.tcRequiredSignatures utx) >>= WAPI.signTxAndSubmit
 
 -- | The signing process gets a finished transaction and a list of public keys,
 --   and signs the transaction with the corresponding private keys.

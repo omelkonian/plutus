@@ -125,7 +125,7 @@ lock = do
     LockParams secret amt <- endpoint @"lock" @LockParams
     let
         dataValue  = gameDataScript secret
-        tx         = payToScript amt gameAddress dataValue
+        tx         = payToScript amt (Ledger.validatorHash gameValidator) dataValue
     void (submitTx tx)
 
 guess :: AsContractError e => Contract GameSchema e ()

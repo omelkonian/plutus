@@ -11,6 +11,7 @@
 {-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
+{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-strictness #-}
 {-# OPTIONS_GHC -fno-specialise #-}
 -- | A multisig contract written as a state machine.
@@ -37,11 +38,9 @@ import           Ledger                       (PubKey, Slot)
 
 import qualified Language.PlutusTx            as PlutusTx
 import           Language.Plutus.Contract
-import           Language.Plutus.Contract.StateMachine (ValueAllocation(..), AsSMContractError, StateMachine(..))
+import           Language.Plutus.Contract.StateMachine (AsSMContractError, StateMachine(..))
 import qualified Language.Plutus.Contract.StateMachine as SM
-import qualified Language.Plutus.Contract.Tx       as Tx
-import           Language.PlutusTx.Prelude         hiding (check, Applicative (..), (<>))
-import qualified Prelude as Haskell
+import           Language.PlutusTx.Prelude         hiding (Applicative (..))
 
 --   $multisig
 --   The n-out-of-m multisig contract works like a joint account of
@@ -82,19 +81,19 @@ data Params = Params
 
 -- | State of the multisig contract.
 data State =
-    Holding Value
+    Holding
     -- ^ Money is locked, anyone can make a proposal for a payment. If there is
     -- no value here then this is a final state and the machine will terminate.
 
-    | CollectingSignatures Value Payment [PubKey]
+    | CollectingSignatures Payment [PubKey]
     -- ^ A payment has been proposed and is awaiting signatures.
     deriving (Show)
 
 instance Eq State where
     {-# INLINABLE (==) #-}
-    (Holding v) == (Holding v') = v == v'
-    (CollectingSignatures vl pmt pks) == (CollectingSignatures vl' pmt' pks') =
-        vl == vl' && pmt == pmt' && pks == pks'
+    Holding == Holding = True
+    (CollectingSignatures pmt pks) == (CollectingSignatures pmt' pks') =
+        pmt == pmt' && pks == pks'
     _ == _ = False
 
 data Input =
@@ -176,61 +175,38 @@ valuePreserved vl ptx = vl == Validation.valueLockedBy ptx (Validation.ownHash p
 valuePaid :: Payment -> PendingTx -> Bool
 valuePaid (Payment vl pk _) ptx = vl == (Validation.valuePaidTo ptx pk)
 
-{-# INLINABLE step #-}
--- | @step params state input@ computes the next state given current state
---   @state@ and the input.
---   'step' does not perform any checks of the preconditions. This is done in
---   'check' below.
-step :: State -> Input -> Maybe State
-step s i = case (s, i) of
-    (Holding vl, ProposePayment pmt) ->
-        Just $ CollectingSignatures vl pmt []
-    (CollectingSignatures vl pmt pks, AddSignature pk) ->
-        Just $ CollectingSignatures vl pmt (pk:pks)
-    (CollectingSignatures vl _ _, Cancel) ->
-        Just $ Holding vl
-    (CollectingSignatures vl (Payment vp _ _) _, Pay) ->
-        let vl' = vl - vp in
-        Just $ Holding vl'
+{-# INLINABLE transition #-}
+transition :: Params -> State -> Input -> Value -> Maybe (PendingTxConstraints State)
+transition params s i currentValue = case (s, i) of
+    (Holding, ProposePayment pmt)
+        | isValidProposal currentValue pmt ->
+            Just $ payToOwnAddress currentValue (CollectingSignatures pmt [])
+    (CollectingSignatures pmt pks, AddSignature pk)
+        | isSignatory pk params && not (containsPk pk pks) ->
+            let newState = CollectingSignatures pmt (pk:pks)
+            in Just $ payToOwnAddress currentValue newState
+                <> signedBy pk
+    (CollectingSignatures payment _, Cancel) ->
+        Just $ payToOwnAddress currentValue Holding
+                <> validIn (Interval.from (paymentDeadline payment))
+    (CollectingSignatures payment pks, Pay)
+        | proposalAccepted params pks ->
+            let Payment{paymentAmount, paymentRecipient, paymentDeadline} = payment
+                newValue = currentValue - paymentAmount
+            in Just $ payToOwnAddress newValue Holding
+                <> payToPubKey paymentAmount paymentRecipient
+                <> validIn (Interval.to paymentDeadline)
     _ -> Nothing
-
-{-# INLINABLE check #-}
--- | @check params ptx state input@ checks whether the pending
---   transaction @ptx@ pays the expected amounts to script and public key
---   addresses.
-check :: Params -> State -> Input -> PendingTx -> Bool
-check p s i ptx = case (s, i) of
-    (Holding vl, ProposePayment pmt) ->
-        isValidProposal vl pmt && valuePreserved vl ptx
-    (CollectingSignatures vl _ pks, AddSignature pk) ->
-        Validation.txSignedBy ptx pk &&
-            isSignatory pk p &&
-            not (containsPk pk pks) &&
-            valuePreserved vl ptx
-    (CollectingSignatures vl pmt _, Cancel) ->
-        proposalExpired ptx pmt && valuePreserved vl ptx
-    (CollectingSignatures vl pmt@(Payment vp _ _) pks, Pay) ->
-        let vl' = vl - vp in
-        not (proposalExpired ptx pmt) &&
-            proposalAccepted p pks &&
-            valuePreserved vl' ptx &&
-            valuePaid pmt ptx
-    _ -> False
-
-{-# INLINABLE final #-}
--- | The machine is in a final state if we are holding no money.
-final :: State -> Bool
-final (Holding v) = Value.isZero v
-final _ = False
 
 {-# INLINABLE mkValidator #-}
 mkValidator :: Params -> Scripts.ValidatorType MultiSigSym
-mkValidator p = SM.mkValidator $ StateMachine step (check p) final
+mkValidator p = SM.mkValidator $ SM.mkStateMachine (transition p)
 
 validatorCode :: Params -> PlutusTx.CompiledCode (Scripts.ValidatorType MultiSigSym)
 validatorCode params = $$(PlutusTx.compile [|| mkValidator ||]) `PlutusTx.applyCode` PlutusTx.liftCode params
 
 type MultiSigSym = StateMachine State Input
+
 scriptInstance :: Params -> Scripts.ScriptInstance MultiSigSym
 scriptInstance params = Scripts.validator @MultiSigSym
     (validatorCode params)
@@ -241,18 +217,11 @@ scriptInstance params = Scripts.validator @MultiSigSym
 machineInstance :: Params -> SM.StateMachineInstance State Input
 machineInstance params =
     SM.StateMachineInstance
-    (StateMachine step (check params) final)
+    (SM.mkStateMachine (transition params))
     (scriptInstance params)
 
-allocate :: State -> Input -> Value -> Maybe ValueAllocation
-allocate (CollectingSignatures _ (Payment vp pk _) _) Pay vl =
-    let vl' = vl - vp
-    in Just $ ValueAllocation{vaOwnAddress=vl', vaOtherPayments=Tx.payToPubKey vp pk}
-allocate _ _ vl =
-    Just $ ValueAllocation{vaOwnAddress = vl, vaOtherPayments = Haskell.mempty}
-
 client :: Params -> SM.StateMachineClient State Input
-client p = SM.mkStateMachineClient (machineInstance p) allocate
+client p = SM.mkStateMachineClient (machineInstance p)
 
 contract ::
     ( AsContractError e
@@ -263,13 +232,13 @@ contract ::
 contract params = go where
     theClient = client params
     go = endpoints >> go
-    endpoints = lock <|> propose <|> cancel <|> addSignature <|> pay
+    endpoints = (Just <$> lock) <|> propose <|> cancel <|> addSignature <|> pay
     propose = endpoint @"propose-payment" >>= SM.runStep theClient . ProposePayment
     cancel  = endpoint @"cancel-payment" >> SM.runStep theClient Cancel
     addSignature = endpoint @"add-signature" >> ownPubKey >>= SM.runStep theClient . AddSignature
     lock = do
         value <- endpoint @"lock"
-        SM.runInitialise theClient (Holding value) value
+        SM.runInitialise theClient Holding value
     pay = endpoint @"pay" >> SM.runStep theClient Pay
 
 PlutusTx.makeIsData ''Payment

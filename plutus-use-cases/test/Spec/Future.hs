@@ -71,7 +71,7 @@ tests =
 
     , Lib.goldenPir "test/Spec/future.pir" $$(PlutusTx.compile [|| F.futureStateMachine ||])
 
-    , HUnit.testCase "script size is reasonable" (Lib.reasonable (F.validator theFuture accounts) 50000)
+    , HUnit.testCase "script size is reasonable" (Lib.reasonable (F.validator theFuture accounts) 52000)
 
     ]
 
@@ -103,7 +103,7 @@ theFuture = Future {
 
 -- | This is the address of contract 'theFuture', initialised by wallet 1
 tokenCurrency :: CurrencySymbol
-tokenCurrency = "16e2b431d9907e229c7a27387a15ba667363e230084132292ff9e646e45f1d51"
+tokenCurrency = "1bc242dc7127414a0bad34c5190aaabb43dcfe4e10d22ba8ce1765681ffb79f3"
 
 -- | After this trace, the initial margin of wallet 1, and the two tokens,
 --   are locked by the contract.

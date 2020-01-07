@@ -18,6 +18,7 @@ import           Control.Monad.Error.Lens (throwing)
 import qualified Data.Map   as Map
 import qualified Data.Text  as T
 
+import qualified Ledger.Address               as Address
 import qualified Language.PlutusTx            as PlutusTx
 import           Ledger                       as Ledger hiding (initialise, to)
 import qualified Ledger.Typed.Scripts         as Scripts
@@ -46,8 +47,9 @@ pubKeyContract
     -> Value
     -> Contract s e TxIn
 pubKeyContract pk vl = do
-    let address = Ledger.scriptAddress (pkValidator pk)
-        tx = Contract.payToScript vl address unitData
+    let valHash = Ledger.validatorHash (pkValidator pk)
+        address = Address.scriptHashAddress valHash
+        tx = Contract.payToScript vl valHash unitData
     tid <- submitTx tx
 
     ledgerTx <- awaitTransactionConfirmed address tid

@@ -13,29 +13,40 @@
 module Language.PlutusTx.StateMachine(
       StateMachine(..)
     , StateMachineInstance (..)
+    , mkStateMachine
     , machineAddress
     , mkValidator
     ) where
 
 import           Language.PlutusTx.Prelude hiding (check)
+import           Ledger.Constraints
 import qualified Language.PlutusTx as PlutusTx
 
-import           Ledger                    (Address)
+import           Ledger                    (Address, Value)
 import           Ledger.Typed.Scripts
-import           Ledger.Scripts (DataValue (..))
-import           Ledger.Validation         (PendingTx, PendingTxOut (..), PendingTxOutType (..), getContinuingOutputs, findData)
+import           Ledger.Validation         (PendingTx, pendingTxInValue, pendingTxIn)
 
 -- | Specification of a state machine, consisting of a transition function that determines the
 -- next state from the current state and an input, and a checking function that checks the validity
 -- of the transition in the context of the current transaction.
 data StateMachine s i = StateMachine {
       -- | The transition function of the state machine. 'Nothing' indicates an invalid transition from the current state.
-      smTransition :: s -> i -> Maybe s,
-      -- | The condition checking function. Checks whether a given state transition is allowed given the 'PendingTx'.
-      smCheck :: s -> i -> PendingTx -> Bool,
-      -- | The final state predicate. Indicates whether a given state is final (the machine halts in that state).
-      smFinal :: s -> Bool
+      smTransition :: s -> i -> Value -> Maybe (PendingTxConstraints s),
+      -- | The condition checking function. Can be used to perform 
+      --   checks on the pending transaction that aren't covered by the 
+      --   constraints. 'smCheck' is always run in addition to checking the
+      --   constraints, so the default implementation always returns true.
+      smCheck :: s -> i -> PendingTx -> Bool
     }
+
+-- | A state machine that does not perform any additional checks on the
+--   'PendingTx' (beyond enforcing the constraints)
+mkStateMachine :: (s -> i -> Value -> Maybe (PendingTxConstraints s)) -> StateMachine s i
+mkStateMachine transition =
+    StateMachine
+        { smTransition = transition
+        , smCheck = \_ _ _ -> True
+        }
 
 instance ScriptType (StateMachine s i) where
     type instance RedeemerType (StateMachine s i) = i
@@ -52,23 +63,13 @@ machineAddress :: StateMachineInstance s i -> Address
 machineAddress = scriptAddress . validatorInstance
 
 {-# INLINABLE mkValidator #-}
--- | Turn a transition function 's -> i -> s' into a validator script.
-mkValidator :: (Eq s, PlutusTx.IsData s) => StateMachine s i -> ValidatorType (StateMachine s i)
-mkValidator (StateMachine step check final) currentState input ptx =
-    let checkOk = traceIfFalseH "State transition invalid - checks failed" (check currentState input ptx)
-        stateAndOutputsOk = case step currentState input of
-            Just newState ->
-                case (final newState, getContinuingOutputs ptx) of
-                    -- Provided there are no ongoing outputs we don't care about the data scripts
-                    (True, outs) -> traceIfFalseH "There must be no ongoing output from a final state" (null outs)
-                    -- It's fine to duplicate the data script - only the one on the continuing output matters.
-                    -- So we just check that the unique continuing output is one of the ones with this data script.
-                    (False, [PendingTxOut{pendingTxOutType=(ScriptTxOut _ dsh)}]) | Just (DataValue d) <- findData dsh ptx, Just givenState <- PlutusTx.fromData d ->
-                        traceIfFalseH "State transition invalid - 'givenState' not equal to 'newState'" (givenState == newState)
-                    (False, [_]) -> traceH "Data didn't decode properly" False
-                    -- It is *not* okay to have multiple outputs with the current validator script, that allows "spliting" the machine.
-                    -- This could be okay in principle, but then we'd have to validate the data script for each one, which would complicate
-                    -- this validator quite a bit.
-                    (False, _) -> traceH "In a non final state there must be precisely one output with the same validator script and a data script must be passed." False
+-- | Turn a transition function @s -> i -> Value -> Maybe (TxConstraints s)@ into a validator script.
+mkValidator :: (PlutusTx.IsData s) => StateMachine s i -> ValidatorType (StateMachine s i)
+mkValidator (StateMachine step check) currentState input ptx =
+    let vl = pendingTxInValue (pendingTxIn ptx)
+        checkOk = traceIfFalseH "State transition invalid - checks failed" (check currentState input ptx)
+        stateAndOutputsOk = case step currentState input vl of
+            Just constraints ->
+                traceIfFalseH "State transition invalid - constraints not satisfied by PendingTx" (checkPendingTx constraints ptx)
             Nothing -> traceH "State transition invalid - input is not a valid transition at the current state" False
     in checkOk && stateAndOutputsOk

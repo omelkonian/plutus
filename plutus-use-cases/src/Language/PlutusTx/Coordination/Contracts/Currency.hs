@@ -23,6 +23,7 @@ import qualified Language.PlutusTx.Coordination.Contracts.PubKey as PK
 import           Language.Plutus.Contract     as Contract
 
 import qualified Ledger.Ada                 as Ada
+import qualified Ledger.Address             as Address
 import qualified Ledger.AddressMap          as AM
 import qualified Language.PlutusTx          as PlutusTx
 import qualified Language.PlutusTx.AssocMap as AssocMap
@@ -126,16 +127,17 @@ forgeContract
 forgeContract pk amounts = do
     refTxIn <- PK.pubKeyContract pk (Ada.lovelaceValueOf 1)
     let theCurrency = mkCurrency (txInRef refTxIn) amounts
-        curAddr     = Ledger.scriptAddress curVali
+        curHash     = Ledger.validatorHash curVali
+        curAddr     = Address.scriptHashAddress curHash
         forgedVal   = forgedValue theCurrency
         curRedeemer = unitRedeemer
         curVali     = curValidator theCurrency
 
         -- the transaction that creates the script output
-        scriptTx    = Contract.payToScript (Ada.lovelaceValueOf 1) curAddr unitData
+        scriptTx    = Contract.payToScript (Ada.lovelaceValueOf 1) curHash unitData
     scriptTxOuts <- AM.fromTxOutputs <$> (submitTx scriptTx >>= awaitTransactionConfirmed curAddr)
     let forgeTx = collectFromScript scriptTxOuts curVali curRedeemer
-                    <> mustSpendInput refTxIn
+                    <> spendInput refTxIn
                     <> forgeValue forgedVal
     _ <- submitTx forgeTx
     pure theCurrency

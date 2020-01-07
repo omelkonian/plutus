@@ -21,6 +21,7 @@ import qualified Language.PlutusTx                     as PlutusTx
 import           Ledger                                (Address)
 import qualified Ledger                                as Ledger
 import qualified Ledger.Ada                            as Ada
+import           Ledger.Constraints
 import           Prelude                               hiding (not)
 import qualified Wallet.Emulator                       as EM
 
@@ -104,7 +105,7 @@ tests =
             (waitingForSlot w1 20 /\ interestingAddress w1 someAddress)
             (handleBlockchainEvents w1 >> addBlocks 1)
 
-        , let smallTx = mustProduceOutput (Tx.pubKeyTxOut (Ada.lovelaceValueOf 10) (walletPubKey (Wallet 2)))
+        , let smallTx = produceOutput (Tx.pubKeyTxOut (Ada.lovelaceValueOf 10) (walletPubKey (Wallet 2)))
           in cp "handle several blockchain events"
                 (submitTx smallTx >> submitTx smallTx)
                 (assertDone w1 (const True) "all blockchain events should be processed"

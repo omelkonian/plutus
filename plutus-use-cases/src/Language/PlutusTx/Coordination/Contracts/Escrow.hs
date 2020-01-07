@@ -142,15 +142,12 @@ targetValue = \case
     ScriptTarget _ _ vl -> vl
 
 -- | Create a 'Ledger.TxOut' value for the target
-mkTx :: EscrowTarget DataValue -> UnbalancedTx
+mkTx :: EscrowTarget DataValue -> LedgerTxConstraints
 mkTx = \case
     PubKeyTarget pk vl ->
         Tx.payToPubKey vl pk
     ScriptTarget vs ds vl ->
-        Tx.payToScript
-            vl
-            (Ledger.scriptHashAddress vs)
-            ds
+        Tx.payToScript vl vs ds
 
 data Action = Redeem | Refund
 
@@ -246,8 +243,8 @@ pay
 pay inst escrow vl = do
     pk <- ownPubKey
     let ds = DataValue (PlutusTx.toData pk)
-        tx = payToScript vl (Scripts.scriptAddress inst) ds
-                <> mustBeValidIn (Ledger.interval 1 (escrowDeadline escrow))
+        tx = payToScript vl (Scripts.scriptHash inst) ds
+                <> validIn (Ledger.interval 1 (escrowDeadline escrow))
     submitTx tx
 
 newtype RedeemSuccess = RedeemSuccess TxId
@@ -288,7 +285,7 @@ redeem inst escrow = do
         valRange = Interval.to (pred $ escrowDeadline escrow)
         tx = Typed.collectFromScript unspentOutputs (scriptInstance escrow) Redeem 
                 <> foldMap mkTx (escrowTargets escrow)
-                <> mustBeValidIn valRange
+                <> validIn valRange
     if currentSlot >= escrowDeadline escrow
     then throwing _RedeemFailed DeadlinePassed
     else if (values unspentOutputs ^. at addr . folded) `lt` targetTotal escrow
@@ -327,7 +324,7 @@ refund inst escrow = do
     unspentOutputs <- utxoAt (Scripts.scriptAddress inst)
     let flt _ (TxOutTx _ txOut) = Ledger.txOutData txOut == Just (Ledger.dataValueHash $ DataValue (PlutusTx.toData pk))
         tx' = Typed.collectFromScriptFilter flt unspentOutputs (scriptInstance escrow) Refund
-                <> mustBeValidIn (from (succ $ escrowDeadline escrow))
+                <> validIn (from (succ $ escrowDeadline escrow))
     if modifiesUtxoSet tx'
     then RefundSuccess <$> submitTx tx'
     else throwing _RefundFailed ()

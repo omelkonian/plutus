@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE Rank2Types         #-}
-{-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TypeFamilies       #-}
 -- | 'AddressMap's and functions for working on them.
 --
@@ -26,7 +25,7 @@ module Ledger.AddressMap(
     ) where
 
 import           Codec.Serialise.Class (Serialise)
-import           Control.Lens          (At (..), Index, IxValue, Ixed (..), Lens', at, lens, non, (&), (.~), (^.))
+import           Control.Lens          (At (..), Index, IxValue, Ixed (..), Lens', at, lens, non, view, (&), (.~), (^.))
 import           Control.Monad         (join)
 import           Data.Aeson            (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson            as JSON
@@ -43,6 +42,7 @@ import           GHC.Generics          (Generic)
 import           Ledger                (Address, Tx (..), TxIn (..), TxOut (..), TxOutRef (..), TxOutTx (..), Value,
                                         txId)
 import           Ledger.Blockchain
+import qualified Ledger.Tx             as Tx
 
 -- | A map of 'Address'es and their unspent outputs.
 newtype AddressMap = AddressMap { getAddressMap :: Map Address (Map TxOutRef TxOutTx) }
@@ -163,7 +163,7 @@ inputs addrs = Map.fromListWith Set.union
     . fmap (fmap Set.singleton . swap)
     . mapMaybe ((\a -> sequence (a, Map.lookup a addrs)) . txInRef)
     . Set.toList
-    . txInputs
+    . view Tx.inputs
 
 -- | Restrict an 'AddressMap' to a set of addresses.
 restrict :: AddressMap -> Set.Set Address -> AddressMap

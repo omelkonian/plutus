@@ -23,7 +23,7 @@ module Crowdfunding where
 
 import           Control.Applicative               (Alternative ((<|>)), Applicative (pure))
 import           Control.Monad                     (void)
-import           Language.Plutus.Contract          (payToScript, mustBeValidIn, mustBeSignedBy)
+import           Language.Plutus.Contract          (payToScript, validIn, signedBy)
 import qualified Language.Plutus.Contract.Typed.Tx as Typed
 import qualified Language.PlutusTx                 as PlutusTx
 import           Language.PlutusTx.Prelude         hiding (Applicative(..), Semigroup(..))
@@ -174,7 +174,7 @@ contribute cmp = do
     contributor <- ownPubKey
     let ds = Ledger.DataValue (PlutusTx.toData contributor)
         tx = payToScript contribValue (campaignAddress cmp) ds
-                <> mustBeValidIn (Ledger.interval 1 (campaignDeadline cmp))
+                <> validIn (Ledger.interval 1 (campaignDeadline cmp))
     txId <- submitTx tx
 
     utxo <- watchAddressUntil (campaignAddress cmp) (campaignCollectionDeadline cmp)
@@ -185,8 +185,8 @@ contribute cmp = do
 
     let flt Ledger.TxOutRef{txOutRefId} _ = txId Haskell.== txOutRefId
         tx' = Typed.collectFromScriptFilter flt utxo (scriptInstance cmp) Refund
-                <> mustBeValidIn (refundRange cmp)
-                <> mustBeSignedBy contributor
+                <> validIn (refundRange cmp)
+                <> signedBy contributor
     if modifiesUtxoSet tx'
     then void (submitTx tx')
     else pure ()
@@ -206,7 +206,7 @@ scheduleCollection cmp = do
     unspentOutputs <- utxoAt (campaignAddress cmp)
 
     let tx = Typed.collectFromScript unspentOutputs (scriptInstance cmp) Collect
-                <> mustBeValidIn (collectionRange cmp)
+                <> validIn (collectionRange cmp)
     void $ submitTx tx
 
 {- note [Transactions in the crowdfunding campaign]

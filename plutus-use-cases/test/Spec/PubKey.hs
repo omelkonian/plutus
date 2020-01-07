@@ -18,7 +18,7 @@ w1 = Wallet 1
 theContract :: Contract BlockchainActions ContractError ()
 theContract = do
   txin <- pubKeyContract (walletPubKey w1) (Ada.lovelaceValueOf 10)
-  void $ submitTx $ mustSpendInput txin
+  void $ submitTx $ spendInput txin
 
 tests :: TestTree
 tests = testGroup "pubkey"

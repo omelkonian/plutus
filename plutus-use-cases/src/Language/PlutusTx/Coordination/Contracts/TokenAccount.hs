@@ -130,8 +130,9 @@ payTx
     :: 
     Scripts.ScriptInstance TokenAccount
     -> Value
-    -> UnbalancedTx
-payTx inst vl = payToScript vl (Scripts.scriptAddress inst) Ledger.Scripts.unitData
+    -> LedgerTxConstraints
+payTx inst vl = 
+    payToScript vl (Scripts.scriptHash inst) Ledger.Scripts.unitData
 
 -- | Pay some money to the given token account
 pay :: (AsContractError e, HasWriteTx s) => Scripts.ScriptInstance TokenAccount -> Value -> Contract s e TxId
@@ -142,15 +143,15 @@ redeemTx
     :: ( HasUtxoAt s )
     => Account
     -> PubKey
-    -> Contract s e UnbalancedTx
+    -> Contract s e LedgerTxConstraints
 redeemTx account pk = do
     let inst = scriptInstance account
     utxos <- utxoAt (address account)
     let pkOut = pubKeyTxOut (accountToken account) pk
         tx = TypedTx.collectFromScript utxos inst ()
-                <> mustProduceOutput pkOut
+                <> produceOutput pkOut
     -- TODO. Replace 'PubKey' with a more general 'Address' type of output?
-    --       Or perhaps add a field 'requiredTokens' to 'UnbalancedTx' and let the
+    --       Or perhaps add a field 'requiredTokens' to 'LedgerTxConstraints' and let the
     --       balancing mechanism take care of providing the token.
     pure tx
 

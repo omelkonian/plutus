@@ -22,6 +22,8 @@
 module Language.PlutusTx.Coordination.Contracts.GameStateMachine(
     contract
     , scriptInstance
+    , GameToken
+    , gameToken
     , gameTokenVal
     , mkValidator
     , LockArgs(..)
@@ -32,29 +34,26 @@ module Language.PlutusTx.Coordination.Contracts.GameStateMachine(
 import Control.Lens (makeClassyPrisms)
 import           Control.Monad                (void)
 import qualified Language.PlutusTx            as PlutusTx
-import           Language.PlutusTx.Prelude    hiding (check, Applicative (..), (<>))
+import           Language.PlutusTx.Prelude    hiding (check, Applicative (..))
 import           Ledger                       hiding (to)
-import           Ledger.Value                 (TokenName)
 import qualified Ledger.Value                 as V
-import qualified Ledger.Validation            as Validation
 import qualified Ledger.Typed.Scripts         as Scripts
 
 import qualified Data.ByteString.Lazy.Char8   as C
 
-import           Language.Plutus.Contract.StateMachine (ValueAllocation(..), AsSMContractError)
+import           Language.Plutus.Contract.StateMachine (AsSMContractError)
 import qualified Language.Plutus.Contract.StateMachine as SM
 
 import           Language.Plutus.Contract
-import qualified Language.Plutus.Contract.Tx as Tx
 
 newtype HashedString = HashedString ByteString
-    deriving newtype PlutusTx.IsData
+    deriving newtype (PlutusTx.IsData, Eq)
     deriving stock Show
 
 PlutusTx.makeLift ''HashedString
 
 newtype ClearString = ClearString ByteString
-    deriving newtype PlutusTx.IsData
+    deriving newtype (PlutusTx.IsData, Eq)
     deriving stock Show
 
 PlutusTx.makeLift ''ClearString
@@ -96,19 +95,23 @@ data GameError =
 contract :: Contract GameStateMachineSchema GameError ()
 contract = (lock <|> guess) >> contract
 
+-- | The token that represents the right to make a guess
+newtype GameToken = GameToken { unGameToken :: Value }
+    deriving newtype (Eq, Show)
+
 -- | State of the guessing game
 data GameState =
     Initialised HashedString
     -- ^ Initial state. In this state only the 'ForgeTokens' action is allowed.
-    | Locked TokenName HashedString
+    | Locked GameToken HashedString
     -- ^ Funds have been locked. In this state only the 'Guess' action is
     --   allowed.
     deriving (Show)
 
 instance Eq GameState where
     {-# INLINABLE (==) #-}
-    (Initialised (HashedString s)) == (Initialised (HashedString s')) = s == s'
-    (Locked (V.TokenName n) (HashedString s)) == (Locked (V.TokenName n') (HashedString s')) = s == s' && n == n'
+    (Initialised s) == (Initialised s') = s == s'
+    (Locked tn s) == (Locked tn' s') = s == s' && tn == tn'
     _ == _ = traceIfFalseH "states not equal" False
 
 -- | Check whether a 'ClearString' is the preimage of a
@@ -118,55 +121,32 @@ checkGuess (HashedString actual) (ClearString gss) = actual == (sha2_256 gss)
 
 -- | Inputs (actions)
 data GameInput =
-      ForgeToken TokenName
+      ForgeToken GameToken
     -- ^ Forge the "guess" token
     | Guess ClearString HashedString Value
     -- ^ Make a guess, extract the funds, and lock the remaining funds using a
     --   new secret word.
     deriving (Show)
 
-{-# INLINABLE step #-}
-step :: GameState -> GameInput -> Maybe GameState
-step state input = case (state, input) of
-    (Initialised s, ForgeToken tn) -> Just $ Locked tn s
-    (Locked tn _, Guess _ nextSecret _) -> Just $ Locked tn nextSecret
+{-# INLINABLE transition #-}
+transition :: GameState -> GameInput -> Value -> Maybe (PendingTxConstraints GameState)
+transition state input currentVal = case (state, input) of
+    (Initialised s, ForgeToken tk) -> 
+        Just $ payToOwnAddress currentVal (Locked tk s)
+                <> forgeValue (unGameToken tk)
+    (Locked tn currentSecret, Guess theGuess nextSecret takenOut)
+        | checkGuess currentSecret theGuess ->
+        Just $ payToOwnAddress (currentVal - takenOut) (Locked tn nextSecret)
+                <> moveValue (unGameToken tn)
     _ -> Nothing
-
-{-# INLINABLE check #-}
-check :: GameState -> GameInput -> PendingTx -> Bool
-check state input ptx = case (state, input) of
-    (Initialised _, ForgeToken tn) -> checkForge (tokenVal tn)
-    (Locked tn currentSecret, Guess theGuess _ _) ->
-        checkGuess currentSecret theGuess
-            && tokenPresent tn
-            && checkForge zero
-    _ -> False
-    where
-        -- | Given a 'TokeName', get the value that contains
-        --   exactly one token of that name in the contract's
-        --   currency.
-        tokenVal :: TokenName -> V.Value
-        tokenVal tn =
-            let ownSymbol = Validation.ownCurrencySymbol ptx
-            in V.singleton ownSymbol tn 1
-        -- | Check whether the token that was forged at the beginning of the
-        --   contract is present in the pending transaction
-        tokenPresent :: TokenName -> Bool
-        tokenPresent tn =
-            let vSpent = Validation.valueSpent ptx
-            in  V.geq vSpent (tokenVal tn)
-        -- | Check whether the value forged by the  pending transaction 'p' is
-        --   equal to the argument.
-        checkForge :: Value -> Bool
-        checkForge vl = vl == (Validation.pendingTxForge ptx)
 
 {-# INLINABLE machine #-}
 machine :: SM.StateMachine GameState GameInput
-machine = SM.StateMachine step check (const False)
+machine = SM.mkStateMachine transition
 
 {-# INLINABLE mkValidator #-}
 mkValidator :: Scripts.ValidatorType (SM.StateMachine GameState GameInput)
-mkValidator = SM.mkValidator (SM.StateMachine step check (const False))
+mkValidator = SM.mkValidator machine
 
 scriptInstance :: Scripts.ScriptInstance (SM.StateMachine GameState GameInput)
 scriptInstance = Scripts.validator @(SM.StateMachine GameState GameInput)
@@ -181,40 +161,16 @@ scriptInstance = Scripts.validator @(SM.StateMachine GameState GameInput)
 machineInstance :: SM.StateMachineInstance GameState GameInput
 machineInstance = SM.StateMachineInstance machine scriptInstance
 
--- | Allocate the funds for each transition.
-allocate :: GameState -> GameInput -> Value -> Maybe ValueAllocation
-allocate (Initialised _) (ForgeToken _) currentVal = 
-    Just $ ValueAllocation
-        { vaOwnAddress    = currentVal
-        -- use 'Tx.forgeValue' to ensure that the transaction forges
-        -- the token.
-        , vaOtherPayments = Tx.forgeValue gameTokenVal
-        }
-allocate (Locked _ _) (Guess _ _ takenOut) currentVal =
-    Just $ ValueAllocation
-        { vaOwnAddress = currentVal - takenOut
-        -- use 'Tx.moveValue' to ensure that the transaction includes
-        -- the token. When the transaction is submitted the wallet will
-        -- add the token as an input and as an output.
-        , vaOtherPayments = Tx.moveValue gameTokenVal
-        }
-allocate _ _ _ = Nothing
-
 client :: SM.StateMachineClient GameState GameInput
-client = SM.mkStateMachineClient machineInstance allocate
+client = SM.mkStateMachineClient machineInstance
 
--- | Name of the token that needs to be present when making a guess.
-gameToken :: TokenName
-gameToken = "guess"
+gameToken :: GameToken
+gameToken = GameToken (V.singleton curHash tokenName 1) where
+    curHash = scriptCurrencySymbol (Scripts.validatorScript scriptInstance)
+    tokenName = "guess"
 
--- | The 'Value' forged by the 'curValidator' contract.
 gameTokenVal :: Value
-gameTokenVal =
-    let
-        -- see note [Obtaining the currency symbol]
-        cur = scriptCurrencySymbol (Scripts.validatorScript scriptInstance)
-    in
-        V.singleton cur gameToken 1
+gameTokenVal = unGameToken gameToken
 
 -- | The @"guess"@ endpoint.
 guess ::
@@ -246,6 +202,8 @@ PlutusTx.makeLift ''GameState
 PlutusTx.makeIsData ''GameInput
 PlutusTx.makeLift ''GameInput
 makeClassyPrisms ''GameError
+PlutusTx.makeLift ''GameToken
+PlutusTx.makeIsData ''GameToken
 
 instance AsContractError GameError where
     _ContractError = _GameContractError

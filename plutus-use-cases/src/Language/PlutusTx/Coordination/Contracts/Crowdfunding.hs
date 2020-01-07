@@ -57,12 +57,13 @@ import qualified Language.Plutus.Contract.Trace    as Trace
 import qualified Language.Plutus.Contract.Typed.Tx as Typed
 import qualified Language.PlutusTx                 as PlutusTx
 import           Language.PlutusTx.Prelude         hiding (Applicative (..), Semigroup(..), return, (<$>), (>>), (>>=))
-import           Ledger                            (Address, PendingTx, PubKey, Slot, Validator)
+import           Ledger                            (PendingTx, PubKey, Slot, Validator)
 import qualified Ledger                            as Ledger
 import qualified Ledger.Ada                        as Ada
 import qualified Ledger.Interval                   as Interval
 import           Ledger.Slot                       (SlotRange)
 import qualified Ledger.Typed.Scripts              as Scripts
+import qualified Ledger.Scripts                    as Scripts
 import           Ledger.Validation                 as V
 import           Ledger.Value                      (Value)
 import qualified Ledger.Value                      as Value
@@ -181,8 +182,8 @@ contributionScript :: Campaign -> Validator
 contributionScript = Scripts.validatorScript . scriptInstance
 
 -- | The address of a [[Campaign]]
-campaignAddress :: Campaign -> Ledger.Address
-campaignAddress = Scripts.scriptAddress . scriptInstance
+campaignAddress :: Campaign -> Ledger.ValidatorHash
+campaignAddress = Scripts.validatorHash . contributionScript
 
 -- | The crowdfunding contract for the 'Campaign'.
 crowdfunding :: AsContractError e => Campaign -> Contract CrowdfundingSchema e ()
@@ -206,20 +207,21 @@ contribute cmp = do
     Contribution{contribValue} <- endpoint @"contribute"
     contributor <- ownPubKey
     let ds = Ledger.DataValue (PlutusTx.toData contributor)
+        inst = scriptInstance cmp
         tx = payToScript contribValue (campaignAddress cmp) ds
-                <> mustBeValidIn (Ledger.interval 1 (campaignDeadline cmp))
+                <> validIn (Ledger.interval 1 (campaignDeadline cmp))
     txId <- submitTx tx
 
-    utxo <- watchAddressUntil (campaignAddress cmp) (campaignCollectionDeadline cmp)
+    utxo <- watchAddressUntil (Scripts.scriptAddress inst) (campaignCollectionDeadline cmp)
 
     -- 'utxo' is the set of unspent outputs at the campaign address at the
     -- collection deadline. If 'utxo' still contains our own contribution
     -- then we can claim a refund.
 
     let flt Ledger.TxOutRef{txOutRefId} _ = txId Haskell.== txOutRefId
-        tx' = Typed.collectFromScriptFilter flt utxo (scriptInstance cmp) Refund
-                <> mustBeValidIn (refundRange cmp)
-                <> mustBeSignedBy contributor
+        tx' = Typed.collectFromScriptFilter flt utxo inst Refund
+                <> validIn (refundRange cmp)
+                <> signedBy contributor
     if modifiesUtxoSet tx'
     then void (submitTx tx')
     else pure ()
@@ -229,6 +231,7 @@ contribute cmp = do
 --   the funding goal was reached in time.
 scheduleCollection :: AsContractError e => Campaign -> Contract CrowdfundingSchema e ()
 scheduleCollection cmp = do
+    let inst = scriptInstance cmp
 
     -- Expose an endpoint that lets the user fire the starting gun on the
     -- campaign. (This endpoint isn't technically necessary, we could just
@@ -236,10 +239,10 @@ scheduleCollection cmp = do
     () <- endpoint @"schedule collection"
 
     _ <- awaitSlot (campaignDeadline cmp)
-    unspentOutputs <- utxoAt (campaignAddress cmp)
+    unspentOutputs <- utxoAt (Scripts.scriptAddress inst)
 
-    let tx = Typed.collectFromScript unspentOutputs (scriptInstance cmp) Collect
-            <> mustBeValidIn (collectionRange cmp)
+    let tx = Typed.collectFromScript unspentOutputs inst Collect
+            <> validIn (collectionRange cmp)
     void $ submitTx tx
 
 -- | Call the "schedule collection" endpoint and instruct the campaign owner's

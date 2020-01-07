@@ -66,7 +66,7 @@ validator sig = mkValidatorScript $
 lock :: AsContractError e => Contract MultiSigSchema e ()
 lock = do
     (ms, vl) <- endpoint @"lock"
-    let tx = payToScript vl (Ledger.scriptAddress (validator ms)) unitData
+    let tx = payToScript vl (Ledger.validatorHash (validator ms)) unitData
     void  $ submitTx tx
 
 -- | The @"unlock"@ endpoint, unlocking some funds with a list
@@ -77,5 +77,5 @@ unlock = do
     let val = validator ms
     utx <- utxoAt (Ledger.scriptAddress val)
     let tx = collectFromScript utx val unitRedeemer
-                <> foldMap Tx.mustBeSignedBy pks
+                <> foldMap Tx.signedBy pks
     void $ submitTx tx

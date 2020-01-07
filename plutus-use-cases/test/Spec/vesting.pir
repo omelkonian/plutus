@@ -1706,10 +1706,10 @@
                                                                 [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
                                                               }
                                                               (lam
-                                                                ww
+                                                                l
                                                                 [LowerBound (con integer)]
                                                                 (lam
-                                                                  ww
+                                                                  h
                                                                   [UpperBound (con integer)]
                                                                   [
                                                                     {
@@ -1718,15 +1718,15 @@
                                                                           LowerBound_match
                                                                           (con integer)
                                                                         }
-                                                                        ww
+                                                                        l
                                                                       ]
                                                                       [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
                                                                     }
                                                                     (lam
-                                                                      ww
+                                                                      v
                                                                       [Extended (con integer)]
                                                                       (lam
-                                                                        ww
+                                                                        in
                                                                         Bool
                                                                         [
                                                                           [
@@ -1738,7 +1738,7 @@
                                                                                       Extended_match
                                                                                       (con integer)
                                                                                     }
-                                                                                    ww
+                                                                                    v
                                                                                   ]
                                                                                   (fun Unit [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]])
                                                                                 }
@@ -1774,15 +1774,15 @@
                                                                                                     UpperBound_match
                                                                                                     (con integer)
                                                                                                   }
-                                                                                                  ww
+                                                                                                  h
                                                                                                 ]
                                                                                                 [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
                                                                                               }
                                                                                               (lam
-                                                                                                ww
+                                                                                                v
                                                                                                 [Extended (con integer)]
                                                                                                 (lam
-                                                                                                  ww
+                                                                                                  in
                                                                                                   Bool
                                                                                                   [
                                                                                                     [
@@ -1794,7 +1794,7 @@
                                                                                                                 Extended_match
                                                                                                                 (con integer)
                                                                                                               }
-                                                                                                              ww
+                                                                                                              v
                                                                                                             ]
                                                                                                             (fun Unit [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]])
                                                                                                           }
@@ -1856,15 +1856,15 @@
                                                                                                           UpperBound_match
                                                                                                           (con integer)
                                                                                                         }
-                                                                                                        ww
+                                                                                                        h
                                                                                                       ]
                                                                                                       [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
                                                                                                     }
                                                                                                     (lam
-                                                                                                      ww
+                                                                                                      v
                                                                                                       [Extended (con integer)]
                                                                                                       (lam
-                                                                                                        ww
+                                                                                                        in
                                                                                                         Bool
                                                                                                         [
                                                                                                           [
@@ -1876,7 +1876,7 @@
                                                                                                                       Extended_match
                                                                                                                       (con integer)
                                                                                                                     }
-                                                                                                                    ww
+                                                                                                                    v
                                                                                                                   ]
                                                                                                                   (fun Unit [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]])
                                                                                                                 }
@@ -1946,15 +1946,15 @@
                                                                                       UpperBound_match
                                                                                       (con integer)
                                                                                     }
-                                                                                    ww
+                                                                                    h
                                                                                   ]
                                                                                   [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
                                                                                 }
                                                                                 (lam
-                                                                                  ww
+                                                                                  v
                                                                                   [Extended (con integer)]
                                                                                   (lam
-                                                                                    ww
+                                                                                    in
                                                                                     Bool
                                                                                     [
                                                                                       [
@@ -1966,7 +1966,7 @@
                                                                                                   Extended_match
                                                                                                   (con integer)
                                                                                                 }
-                                                                                                ww
+                                                                                                v
                                                                                               ]
                                                                                               (fun Unit [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]])
                                                                                             }
@@ -2084,14 +2084,13 @@
                                                         (datatypebind
                                                           (datatype
                                                             (tyvardecl
-                                                              PendingTxOutRef
-                                                              (type)
+                                                              TxOutRef (type)
                                                             )
                                                             
-                                                            PendingTxOutRef_match
+                                                            TxOutRef_match
                                                             (vardecl
-                                                              PendingTxOutRef
-                                                              (fun (con bytestring) (fun (con integer) PendingTxOutRef))
+                                                              TxOutRef
+                                                              (fun (con bytestring) (fun (con integer) TxOutRef))
                                                             )
                                                           )
                                                         )
@@ -2109,7 +2108,7 @@
                                                               PendingTxIn_match
                                                               (vardecl
                                                                 PendingTxIn
-                                                                (fun PendingTxOutRef (fun w (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] [PendingTxIn w])))
+                                                                (fun TxOutRef (fun w (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] [PendingTxIn w])))
                                                               )
                                                             )
                                                           )
@@ -2118,18 +2117,18 @@
                                                             (datatypebind
                                                               (datatype
                                                                 (tyvardecl
-                                                                  PendingTxOutType
+                                                                  TxOutType
                                                                   (type)
                                                                 )
                                                                 
-                                                                PendingTxOutType_match
+                                                                TxOutType_match
                                                                 (vardecl
-                                                                  PubKeyTxOut
-                                                                  (fun (con bytestring) PendingTxOutType)
+                                                                  PayToPubKey
+                                                                  (fun (con bytestring) TxOutType)
                                                                 )
                                                                 (vardecl
-                                                                  ScriptTxOut
-                                                                  (fun (con bytestring) (fun (con bytestring) PendingTxOutType))
+                                                                  PayToScript
+                                                                  (fun (con bytestring) TxOutType)
                                                                 )
                                                               )
                                                             )
@@ -2138,14 +2137,13 @@
                                                               (datatypebind
                                                                 (datatype
                                                                   (tyvardecl
-                                                                    PendingTxOut
-                                                                    (type)
+                                                                    TxOut (type)
                                                                   )
                                                                   
-                                                                  PendingTxOut_match
+                                                                  TxOut_match
                                                                   (vardecl
-                                                                    PendingTxOut
-                                                                    (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun PendingTxOutType PendingTxOut))
+                                                                    TxOut
+                                                                    (fun (con bytestring) (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun TxOutType TxOut)))
                                                                   )
                                                                 )
                                                               )
@@ -2163,7 +2161,7 @@
                                                                     PendingTx_match
                                                                     (vardecl
                                                                       PendingTx
-                                                                      (fun [List [PendingTxIn [Maybe [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]]]] (fun [List PendingTxOut] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun i (fun [Interval (con integer)] (fun [List [[Tuple2 (con bytestring)] (con bytestring)]] (fun [List [[Tuple2 (con bytestring)] Data]] (fun (con bytestring) [PendingTx i])))))))))
+                                                                      (fun [List [PendingTxIn [Maybe [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]]]] (fun [List TxOut] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]] (fun i (fun [Interval (con integer)] (fun [List [[Tuple2 (con bytestring)] (con bytestring)]] (fun [List [[Tuple2 (con bytestring)] Data]] (fun (con bytestring) [PendingTx i])))))))))
                                                                     )
                                                                   )
                                                                 )
@@ -2861,7 +2859,7 @@
                                                                                                 [List [PendingTxIn [Maybe [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]]]]
                                                                                                 (lam
                                                                                                   ds
-                                                                                                  [List PendingTxOut]
+                                                                                                  [List TxOut]
                                                                                                   (lam
                                                                                                     ds
                                                                                                     [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
@@ -2889,48 +2887,48 @@
                                                                                                                       {
                                                                                                                         {
                                                                                                                           foldr
-                                                                                                                          PendingTxOut
+                                                                                                                          TxOut
                                                                                                                         }
                                                                                                                         [List [[Tuple2 (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]]]
                                                                                                                       }
                                                                                                                       (lam
                                                                                                                         e
-                                                                                                                        PendingTxOut
+                                                                                                                        TxOut
                                                                                                                         (lam
                                                                                                                           xs
                                                                                                                           [List [[Tuple2 (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]]]
                                                                                                                           [
                                                                                                                             {
                                                                                                                               [
-                                                                                                                                PendingTxOut_match
+                                                                                                                                TxOut_match
                                                                                                                                 e
                                                                                                                               ]
                                                                                                                               [List [[Tuple2 (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]]]
                                                                                                                             }
                                                                                                                             (lam
                                                                                                                               ds
-                                                                                                                              [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
+                                                                                                                              (con bytestring)
                                                                                                                               (lam
                                                                                                                                 ds
-                                                                                                                                PendingTxOutType
-                                                                                                                                [
+                                                                                                                                [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
+                                                                                                                                (lam
+                                                                                                                                  ds
+                                                                                                                                  TxOutType
                                                                                                                                   [
-                                                                                                                                    {
-                                                                                                                                      [
-                                                                                                                                        PendingTxOutType_match
-                                                                                                                                        ds
-                                                                                                                                      ]
-                                                                                                                                      [List [[Tuple2 (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]]]
-                                                                                                                                    }
-                                                                                                                                    (lam
-                                                                                                                                      ipv
-                                                                                                                                      (con bytestring)
-                                                                                                                                      xs
-                                                                                                                                    )
-                                                                                                                                  ]
-                                                                                                                                  (lam
-                                                                                                                                    h
-                                                                                                                                    (con bytestring)
+                                                                                                                                    [
+                                                                                                                                      {
+                                                                                                                                        [
+                                                                                                                                          TxOutType_match
+                                                                                                                                          ds
+                                                                                                                                        ]
+                                                                                                                                        [List [[Tuple2 (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]]]
+                                                                                                                                      }
+                                                                                                                                      (lam
+                                                                                                                                        ipv
+                                                                                                                                        (con bytestring)
+                                                                                                                                        xs
+                                                                                                                                      )
+                                                                                                                                    ]
                                                                                                                                     (lam
                                                                                                                                       ds
                                                                                                                                       (con bytestring)
@@ -2945,7 +2943,7 @@
                                                                                                                                                     equalsByteString
                                                                                                                                                     h
                                                                                                                                                   ]
-                                                                                                                                                  h
+                                                                                                                                                  ds
                                                                                                                                                 ]
                                                                                                                                               ]
                                                                                                                                               (fun Unit [List [[Tuple2 (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]]])
@@ -2986,8 +2984,8 @@
                                                                                                                                         Unit
                                                                                                                                       ]
                                                                                                                                     )
-                                                                                                                                  )
-                                                                                                                                ]
+                                                                                                                                  ]
+                                                                                                                                )
                                                                                                                               )
                                                                                                                             )
                                                                                                                           ]
@@ -3234,7 +3232,7 @@
                                                                                                           [List [PendingTxIn [Maybe [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]]]]
                                                                                                           (lam
                                                                                                             ds
-                                                                                                            [List PendingTxOut]
+                                                                                                            [List TxOut]
                                                                                                             (lam
                                                                                                               ds
                                                                                                               [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
@@ -3959,7 +3957,7 @@
                                                                                                                                       [List [PendingTxIn [Maybe [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]]]]
                                                                                                                                       (lam
                                                                                                                                         ds
-                                                                                                                                        [List PendingTxOut]
+                                                                                                                                        [List TxOut]
                                                                                                                                         (lam
                                                                                                                                           ds
                                                                                                                                           [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] [[(lam k (type) (lam v (type) [List [[Tuple2 k] v]])) (con bytestring)] (con integer)]]
@@ -4043,7 +4041,7 @@
                                                                                                                                                                               }
                                                                                                                                                                               (lam
                                                                                                                                                                                 ds
-                                                                                                                                                                                PendingTxOutRef
+                                                                                                                                                                                TxOutRef
                                                                                                                                                                                 (lam
                                                                                                                                                                                   ds
                                                                                                                                                                                   [[[Tuple3 (con bytestring)] (con bytestring)] (con bytestring)]

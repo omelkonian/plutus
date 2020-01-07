@@ -10,13 +10,14 @@
 module Language.Plutus.Contract.StateMachine(
     -- $statemachine
     StateMachineClient(..)
-    , ValueAllocation(..)
+    , TxConstraints
     , SMContractError(..)
     , AsSMContractError(..)
     , SM.StateMachine(..)
     , SM.StateMachineInstance(..)
     -- * Constructing the machine instance
     , SM.mkValidator
+    , SM.mkStateMachine
     -- * Constructing the state machine client
     , mkStateMachineClient
     , defaultChooser
@@ -26,21 +27,22 @@ module Language.Plutus.Contract.StateMachine(
     ) where
 
 import           Control.Lens
-import           Control.Monad                     (unless)
 import           Control.Monad.Error.Lens
 import           Data.Text                         (Text)
 import qualified Data.Text                         as Text
 
 import           Language.Plutus.Contract
-import qualified Language.Plutus.Contract.Tx       as Tx
 import qualified Language.Plutus.Contract.Typed.Tx as Tx
 import qualified Language.PlutusTx                 as PlutusTx
 import           Language.PlutusTx.StateMachine    (StateMachine (..), StateMachineInstance (..))
 import qualified Language.PlutusTx.StateMachine    as SM
 import           Ledger                            (Value)
+import           Ledger.Constraints                (TxConstraints (..))
+import           Ledger.Typed.Constraints          (TypedOrUntypedTxOuts (..), TypedTxConstraints, addTypedTxIn,
+                                                    toTypedTxConstraints, toUntypedLedgerConstraints)
 import           Ledger.Typed.Tx                   (TypedScriptTxOut (..))
 import qualified Ledger.Typed.Tx                   as Typed
-import qualified Ledger.Value                      as Value
+import           Ledger.Typed.TypeUtils            (hfHead)
 
 import qualified Wallet.Typed.StateMachine         as SM
 
@@ -52,6 +54,9 @@ import qualified Wallet.Typed.StateMachine         as SM
 -- * A 'StateMachineClient state input' with the state machine instance and
 --   an allocation function
 --
+-- In many cases it is enough to define the transition function
+-- @t :: state -> input -> Value -> Maybe (PendingTxConstraints state)@ and use
+-- 'mkStateMachine' and 'mkStateMachineClient' to get the client.
 -- You can then use 'runInitialise' and 'runStep' to initialise and transition
 -- the state machine. 'runStep' gets the current state from the utxo set and
 -- makes the transition to the next state using the given input and taking care
@@ -66,34 +71,11 @@ data SMContractError s i =
 
 makeClassyPrisms ''SMContractError
 
--- | Allocation of funds to outputs of the state machine transition transaction.
-data ValueAllocation =
-    ValueAllocation
-        { vaOwnAddress    :: Value
-        -- ^ How much should stay locked in the contract
-        , vaOtherPayments :: UnbalancedTx
-        -- ^ Any other payments
-        }
-
-instance Semigroup ValueAllocation where
-    l <> r =
-        ValueAllocation
-            { vaOwnAddress = vaOwnAddress l <> vaOwnAddress r
-            , vaOtherPayments = vaOtherPayments l <> vaOtherPayments r
-            }
-
-instance Monoid ValueAllocation where
-    mappend = (<>)
-    mempty  = ValueAllocation mempty mempty
-
 -- | Client-side definition of a state machine.
 data StateMachineClient s i = StateMachineClient
     { scInstance :: SM.StateMachineInstance s i
     -- ^ The instance of the state machine, defining the machine's transitions,
     --   its final states and its check function.
-    , scPayments :: s -> i -> Value -> Maybe ValueAllocation
-    -- ^ A function that determines the 'ValueAllocation' of each transition,
-    --   given the value currently locked by the contract.
     , scChooser  :: [SM.OnChainState s i] -> Either (SMContractError s i) (SM.OnChainState s i)
     -- ^ A function that chooses the relevant on-chain state, given a list of
     --   all potential on-chain states found at the contract address.
@@ -114,12 +96,10 @@ defaultChooser xs  =
 mkStateMachineClient ::
     forall state input
     . SM.StateMachineInstance state input
-    -> (state -> input -> Value -> Maybe ValueAllocation)
     -> StateMachineClient state input
-mkStateMachineClient inst payments =
+mkStateMachineClient inst =
     StateMachineClient
         { scInstance = inst
-        , scPayments = payments
         , scChooser  = defaultChooser
         }
 
@@ -144,16 +124,17 @@ runStep ::
     -- ^ The state machine
     -> input
     -- ^ The input to apply to the state machine
-    -> Contract schema e state
+    -> Contract schema e (Maybe state)
 runStep smc input = do
-    -- the transaction returned by 'mkStep' includes an output with the payments
-    -- to the script address, so we only need to deal with the 'vaOtherPayments'
-    -- field of the value allocation here.
-    (typedTx, newState, ValueAllocation{vaOtherPayments}) <- mkStep smc input
-    let tx = case typedTx of
-            (Typed.TypedTxSomeOuts tx') -> Tx.fromLedgerTx (Typed.toUntypedTx tx')
-    submitTxConfirmed (tx <> vaOtherPayments)
-    pure newState
+    typedConstraints <- mkStep smc input
+    case typedConstraints of
+        Left c -> do -- no continuing output (final state)
+            submitTxConfirmed (toUntypedLedgerConstraints c)
+            pure Nothing
+        Right c -> do -- has continuing output (nonfinal state)
+            submitTxConfirmed (toUntypedLedgerConstraints c)
+            let TypedOrUntypedTxOuts{totTypedTxOuts} = tcOutputs c
+            pure $ Just $ tyTxOutData $ hfHead totTypedTxOuts
 
 -- | Initialise a state machine
 runInitialise ::
@@ -173,8 +154,13 @@ runInitialise ::
 runInitialise StateMachineClient{scInstance} initialState initialValue = do
     let StateMachineInstance{validatorInstance} = scInstance
         tx = Tx.makeScriptPayment validatorInstance initialValue initialState
-    submitTxConfirmed tx
+    submitTxConfirmed (toUntypedLedgerConstraints tx)
     pure initialState
+
+type StateMachineTypedTx state input =
+    Either
+        (TypedTxConstraints '[SM.StateMachine state input] '[]) -- halting
+        (TypedTxConstraints '[SM.StateMachine state input] '[SM.StateMachine state input]) -- stepping
 
 mkStep ::
     forall e state schema input.
@@ -185,28 +171,16 @@ mkStep ::
     )
     => StateMachineClient state input
     -> input
-    -> Contract schema e (Typed.TypedTxSomeOuts '[SM.StateMachine state input], state, ValueAllocation)
-mkStep client@StateMachineClient{scInstance, scPayments} input = do
-    let StateMachineInstance{stateMachine=StateMachine{smTransition, smFinal}, validatorInstance} = scInstance
+    -> Contract schema e (StateMachineTypedTx state input)
+mkStep client@StateMachineClient{scInstance} input = do
+    let StateMachineInstance{stateMachine=StateMachine{smTransition}, validatorInstance} = scInstance
     (TypedScriptTxOut{tyTxOutData=currentState}, txOutRef) <- getOnChainState client
-    newState <- case smTransition currentState input of
+
+    let typedTxIn = Typed.makeTypedScriptTxIn @(SM.StateMachine state input) validatorInstance input txOutRef
+        balance = Typed.txInValue typedTxIn
+    typedTxConstraints <- case smTransition currentState input balance >>= toTypedTxConstraints validatorInstance of
         Just s  -> pure s
         Nothing -> throwing _InvalidTransition (currentState, input)
 
-    let typedTxIn = Typed.makeTypedScriptTxIn @(SM.StateMachine state input) validatorInstance input txOutRef
-        tx = Typed.TypedTxSomeOuts (Typed.addTypedTxIn typedTxIn Typed.baseTx)
-
-    valueAllocation <-
-        maybe (throwing _InvalidTransition (currentState, input)) pure
-            $ scPayments currentState input (Typed.txInValue typedTxIn)
-
-    finalTx <- if smFinal newState
-               then do
-                    unless (Value.isZero (vaOwnAddress valueAllocation)) (throwing_ _NonZeroValueAllocatedInFinalState)
-                    pure tx
-               else do
-                    let output = Typed.makeTypedScriptTxOut validatorInstance newState (vaOwnAddress valueAllocation)
-                        fullTx = Typed.addSomeTypedTxOut output tx
-                    pure fullTx
-
-    pure (finalTx, newState, valueAllocation)
+    let txWithIns = bimap (addTypedTxIn typedTxIn) (addTypedTxIn typedTxIn) typedTxConstraints
+    pure txWithIns

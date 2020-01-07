@@ -28,7 +28,7 @@ module Ledger.Index(
 import           Prelude                          hiding (lookup)
 
 
-import           Control.Lens                     (at, (^.))
+import           Control.Lens                     (at, (^.), view)
 import           Control.Monad
 import           Control.Monad.Except             (MonadError (..), runExcept)
 import           Control.Monad.Reader             (MonadReader (..), ReaderT (..), ask)
@@ -176,7 +176,7 @@ checkValidInputs tx = do
 
 -- | Match each input of the transaction with the output that it spends.
 lkpOutputs :: ValidationMonad m => Tx -> m [(TxIn, TxOut)]
-lkpOutputs = traverse (\t -> traverse (lkpTxOut . txInRef) (t, t)) . Set.toList . txInputs
+lkpOutputs = traverse (\t -> traverse (lkpTxOut . txInRef) (t, t)) . Set.toList . view inputs
 
 {- note [Forging of Ada]
 
@@ -200,7 +200,7 @@ checkForgingAuthorised tx =
 
         mpsScriptHashes = Scripts.ValidatorHash . V.unCurrencySymbol <$> forgedCurrencies
 
-        lockingScripts = (\(v,_,_) -> validatorHash v) <$> (mapMaybe inScripts $ Set.toList (txInputs tx))
+        lockingScripts = (\(v,_,_) -> validatorHash v) <$> (mapMaybe inScripts $ Set.toList (view inputs tx))
 
         forgedWithoutScript = filter (\c -> c `notElem` lockingScripts) mpsScriptHashes
     in
@@ -266,7 +266,7 @@ checkMatch pendingTx = \case
 -- | Check if the value produced by a transaction equals the value consumed by it.
 checkValuePreserved :: ValidationMonad m => Tx -> m ()
 checkValuePreserved t = do
-    inVal <- (P.+) (txForge t) <$> fmap fold (traverse (lkpValue . txInRef) (Set.toList $ txInputs t))
+    inVal <- (P.+) (txForge t) <$> fmap fold (traverse (lkpValue . txInRef) (Set.toList $ view inputs t))
     let outVal = txFee t P.+ foldMap txOutValue (txOutputs t)
     if outVal == inVal
     then pure ()
@@ -304,10 +304,10 @@ type PendingTxNoIn = Validation.PendingTx' ()
 -- | Create the data about the transaction which will be passed to a validator script.
 validationData :: ValidationMonad m => Tx -> m PendingTxNoIn
 validationData tx = do
-    txins <- traverse mkIn $ Set.toList $ txInputs tx
+    txins <- traverse mkIn $ Set.toList $ view inputs tx
     let ptx = PendingTx
             { pendingTxInputs = txins
-            , pendingTxOutputs = mkOut <$> txOutputs tx
+            , pendingTxOutputs = txOutputs tx
             , pendingTxForge = txForge tx
             , pendingTxFee = txFee tx
             , pendingTxIn = () -- this is changed accordingly in `checkMatch` during validation
@@ -317,15 +317,6 @@ validationData tx = do
             , pendingTxId = txId tx
             }
     pure ptx
-
--- | Create the data about a transaction output which will be passed to a validator script.
-mkOut :: TxOut -> Validation.PendingTxOut
-mkOut t = Validation.PendingTxOut (txOutValue t) tp where
-    tp = case txOutType t of
-        PayToScript dh ->
-            let vh  = Scripts.ValidatorHash (unsafeGetAddress $ txOutAddress t)
-            in Validation.ScriptTxOut vh dh
-        PayToPubKey pk -> Validation.PubKeyTxOut pk
 
 pendingTxInScript
     :: ValidationMonad m
@@ -347,7 +338,7 @@ txInFromRef outRef witness = Validation.PendingTxIn ref witness <$> vl where
     ref =
         let tid = txOutRefId outRef
             idx  = txOutRefIdx outRef
-        in Validation.PendingTxOutRef tid idx
+        in Validation.TxOutRef tid idx
 
 pendingTxInPubkey
     :: ValidationMonad m

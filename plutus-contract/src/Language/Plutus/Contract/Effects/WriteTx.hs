@@ -23,7 +23,7 @@ import           GHC.Generics                     (Generic)
 import           Language.Plutus.Contract.Effects.AwaitTxConfirmed (HasTxConfirmation, awaitTxConfirmed)
 import           Language.Plutus.Contract.Request as Req
 import           Language.Plutus.Contract.Schema  (Event (..), Handlers (..), Input, Output)
-import           Language.Plutus.Contract.Tx      (UnbalancedTx)
+import           Language.Plutus.Contract.Tx      (LedgerTxConstraints)
 
 import           IOTS                             (IotsType)
 import           Ledger.TxId                      (TxId)
@@ -55,16 +55,16 @@ type HasWriteTx s =
 type WriteTx = TxSymbol .== (WriteTxResponse, PendingTransactions)
 
 newtype PendingTransactions =
-  PendingTransactions { unPendingTransactions :: [UnbalancedTx] }
+  PendingTransactions { unPendingTransactions :: [LedgerTxConstraints] }
     deriving stock (Eq, Generic, Show)
     deriving newtype (Semigroup, Monoid, ToJSON, FromJSON)
-    deriving Pretty via (PrettyFoldable [] UnbalancedTx)
+    deriving Pretty via (PrettyFoldable [] LedgerTxConstraints)
     deriving anyclass (IotsType)
 
 -- | Send an unbalanced transaction to be balanced and signed. Returns the ID
 --    of the final transaction when the transaction was submitted. Throws an 
 --    error if balancing or signing failed.
-submitTx :: forall s e. (HasWriteTx s, Req.AsContractError e) => UnbalancedTx -> Contract s e TxId
+submitTx :: forall s e. (HasWriteTx s, Req.AsContractError e) => LedgerTxConstraints -> Contract s e TxId
 -- See Note [Injecting errors into the user's error type]
 submitTx t = 
   let req = request @TxSymbol @_ @_ @s (PendingTransactions [t]) in
@@ -78,7 +78,7 @@ submitTxConfirmed
   , HasTxConfirmation s
   , Req.AsContractError e
   )
-  => UnbalancedTx
+  => LedgerTxConstraints
   -> Contract s e ()
 submitTxConfirmed t = submitTx t >>= awaitTxConfirmed
 
@@ -91,5 +91,5 @@ event r = Event (IsJust #tx r)
 transactions
   :: forall s. ( HasType TxSymbol PendingTransactions (Output s) )
    => Handlers s
-   -> [UnbalancedTx]
+   -> [LedgerTxConstraints]
 transactions (Handlers r) = unPendingTransactions $ r .! #tx

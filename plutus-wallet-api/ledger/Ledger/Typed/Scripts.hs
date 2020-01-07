@@ -11,6 +11,7 @@ module Ledger.Typed.Scripts(
     , Validator
     , ScriptInstance
     , validator
+    , scriptHash
     , scriptAddress
     , validatorScript
     , wrapValidator
@@ -49,8 +50,8 @@ type WrappedValidatorType = Data -> Data -> Data -> ()
 -- | A typed validator script with its 'ValidatorScript' and 'Address'.
 data ScriptInstance (a :: Type) =
     Validator
-        { instanceScript  :: Validator
-        , instanceAddress :: Addr.Address
+        { instanceScript :: Validator
+        , instanceHash   :: ValidatorHash
         }
     deriving (Generic, ToJSON, FromJSON)
 
@@ -63,11 +64,15 @@ validator ::
     -> ScriptInstance a
 validator vc wrapper =
     let val = mkValidatorScript $ wrapper `applyCode` vc
-    in Validator val (Addr.scriptAddress val)
+    in Validator val (validatorHash val)
+
+-- | Get the validator hash for a script instance.
+scriptHash :: ScriptInstance a -> ValidatorHash
+scriptHash = instanceHash
 
 -- | Get the address for a script instance.
 scriptAddress :: ScriptInstance a -> Addr.Address
-scriptAddress = instanceAddress
+scriptAddress = Addr.scriptHashAddress . scriptHash
 
 -- | Get the validator script for a script instance.
 validatorScript :: ScriptInstance a -> Validator

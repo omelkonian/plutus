@@ -20,3 +20,7 @@ data HListF (f :: Type -> Type) (l :: [Type]) where
 hfOut :: forall o f (ts :: [Type]) . (forall a . f a -> o) -> HListF f ts -> [o]
 hfOut _ HNilF         = []
 hfOut f (HConsF e es) = f e : hfOut f es
+
+-- | The first element of a heterogeneous list.
+hfHead :: forall f t (ts :: [Type]) . HListF f (t ': ts) -> f t
+hfHead (HConsF e _) = e
