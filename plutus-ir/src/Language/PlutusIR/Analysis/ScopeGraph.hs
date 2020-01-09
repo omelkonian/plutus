@@ -20,6 +20,10 @@ import qualified Language.PlutusIR.Analysis.Usages  as Usages
 import qualified Algebra.Graph.Class                as G
 import qualified Data.Set                           as Set
 
+import Data.Maybe (mapMaybe)
+
+import Language.PlutusIR.Parser
+
 -- | A node in a dependency graph. Either a specific 'PLC.Unique', or a specific
 -- node indicating the root of the graph. We need the root node because when computing the
 -- dependency graph of, say, a term, there will not be a binding for the term itself which
@@ -47,10 +51,13 @@ runTermDeps
     :: (DepGraph g, PLC.HasUnique (tyname a) PLC.TypeUnique, PLC.HasUnique (name a) PLC.TermUnique)
     => Term tyname name a
     -> g
-runTermDeps t = runReader (termDeps t) (Root,[])
+runTermDeps t = runReader (termDeps t) (Root,[],[])
 
 -- the reader context enhanced by a full enclosing lambda scope
-type Ctx = (Node, Scope)
+type Ctx = (Node,
+            Scope,              -- current scope
+            Scope               -- pending scope to be added
+           )
 type Scope = [(PLC.Unique,Text)]
 
 -- | Compute the dependency graph of a 'Type'. The 'Root' node will correspond to the type itself.
@@ -67,7 +74,7 @@ runTypeDeps
     :: (DepGraph g, PLC.HasUnique (tyname a) PLC.TypeUnique)
     => Type tyname a
     -> g
-runTypeDeps t = runReader (typeDeps t) (Root,[])
+runTypeDeps t = runReader (typeDeps t) (Root,[],[])
 
 
 -- | Record some dependencies on the current node.
@@ -76,8 +83,12 @@ recordDeps
     => [(PLC.Unique,Text)]
     -> m g
 recordDeps us = do
-    (current,scope) <- ask
-    pure $ G.connect (G.vertices [current]) (G.vertices (fmap (\ v -> (if v `elem` scope then SmallOrBigLambda else LetOrFree) v) us))
+    (currentLet, currentScope, pendingScope) <- ask
+    pure $ G.connect (G.vertices [currentLet]) (G.vertices (mapMaybe (\ v -> if v `elem` currentScope
+                                                                             then Just $ SmallOrBigLambda v
+                                                                             else if v `elem` pendingScope
+                                                                                  then Nothing
+                                                                                  else Just $ LetOrFree v) us))
 
 -- | Process the given action with the given name as the current node.
 withLet
@@ -85,14 +96,17 @@ withLet
     => n
     -> m g
     -> m g
-withLet n = local $ set _1 $ LetOrFree (n ^. PLC.unique . coerced, n ^. PLC.str)
+withLet n = local $ \ (_currentLet, currentScope, pendingScope) ->
+                      ( LetOrFree (n ^. PLC.unique . coerced, n ^. PLC.str)
+                      , pendingScope++currentScope
+                      ,[])
 
-withScope
+addPendingScope
     :: (MonadReader Ctx m, PLC.HasUnique n u)
     => n
     -> m g
     -> m g
-withScope n = local $ over _2 ((n ^. PLC.unique . coerced, n ^. PLC.str) :)
+addPendingScope n = local $ over _3 ((n ^. PLC.unique . coerced, n ^. PLC.str) :)
 
 
 bindingDeps
@@ -133,6 +147,10 @@ tyVarDeclDeps
     -> m g
 tyVarDeclDeps _ = pure G.empty
 
+
+last2 :: (a,[b],[b]) -> [b]
+last2 (_,b1,b2) = b1++b2
+
 -- | Compute the dependency graph of a term. Takes an initial 'Node' indicating what the term itself depends on
 -- (usually 'Root' if it is the real term you are interested in).
 termDeps
@@ -141,13 +159,13 @@ termDeps
     -> m g
 termDeps = \case
     LamAbs _ n ty t -> do
-      newScopeEdge <- G.edge (SmallOrBigLambda (n ^. PLC.unique . coerced, n ^. PLC.str)) . (\case (v:_) -> SmallOrBigLambda v; _ -> Top) . snd <$> ask
-      typGraph <- withScope n $ typeDeps ty
-      tGraph <- withScope n $ termDeps t
+      newScopeEdge <- G.edge (SmallOrBigLambda (n ^. PLC.unique . coerced, n ^. PLC.str)) . (\case (v:_) -> SmallOrBigLambda v; _ -> Top) <$> asks last2
+      typGraph <- addPendingScope n $ typeDeps ty
+      tGraph <- addPendingScope n $ termDeps t
       pure $ G.overlays [newScopeEdge,typGraph,tGraph]
     TyAbs _ n _ki t -> do
-      newScopeEdge <- G.edge (SmallOrBigLambda (n ^. PLC.unique . coerced, n ^. PLC.str)) . (\case (v:_) -> SmallOrBigLambda v; _ -> Top) . snd <$> ask
-      bodyGraph <- withScope n $ termDeps t
+      newScopeEdge <- G.edge (SmallOrBigLambda (n ^. PLC.unique . coerced, n ^. PLC.str)) . (\case (v:_) -> SmallOrBigLambda v; _ -> Top) <$> asks last2 
+      bodyGraph <- addPendingScope n $ termDeps t
       pure $ newScopeEdge `G.overlay` bodyGraph
     Let _ _ bs t -> do
         bGraphs <- traverse bindingDeps bs
