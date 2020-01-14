@@ -25,14 +25,15 @@ import qualified Data.Text                  as Text
 import           Language.Marlowe.Semantics as Marlowe
 import qualified Language.PlutusTx          as PlutusTx
 import qualified Language.PlutusTx.Prelude  as P
-import           Ledger                     (DataValue (..), PubKey (..), Slot (..), Tx, TxOut (..), interval,
+import           Ledger                     (Address, DataValue (..), Slot (..), Tx, TxOut (..), interval, CurrencySymbol, TokenName,
+                                             mkValidatorScript, pubKeyTxOut, scriptAddress, scriptTxIn, scriptTxOut, scriptTxOut',
 
-                                             mkValidatorScript, pubKeyTxOut, scriptAddress, scriptTxIn, scriptTxOut,
                                              txOutRefs)
-import           Ledger.Ada                 (adaValueOf)
-import           Ledger.Scripts             (RedeemerValue (..), Validator)
+import           Ledger.Ada                 (adaValueOf, adaSymbol)
+import           Ledger.Scripts             (RedeemerValue (..), Validator, ValidatorHash, validatorHash)
 import qualified Ledger.Typed.Scripts       as Scripts
 import qualified Ledger.Value               as Val
+import           Ledger.Validation
 import           Wallet                     (WalletAPI (..), WalletAPIError, createPaymentWithChange, createTxAndSubmit,
                                              throwOtherError)
 
@@ -42,15 +43,15 @@ import           Wallet                     (WalletAPI (..), WalletAPIError, cre
 createContract :: (
     MonadError WalletAPIError m,
     WalletAPI m)
-    => Contract
+    => MarloweParams
+    -> Contract
     -> m (MarloweData, Tx)
-createContract contract = do
+createContract params contract = do
     slot <- slot
     creator <- ownPubKey
-    let validator = validatorScript creator
+    let validator = validatorScript params
 
         marloweData = MarloweData {
-            marloweCreator = creator,
             marloweContract = contract,
             marloweState = emptyState slot }
         ds = DataValue $ PlutusTx.toData marloweData
@@ -72,14 +73,15 @@ deposit :: (
     MonadError WalletAPIError m,
     WalletAPI m)
     => Tx
+    -> MarloweParams
     -> MarloweData
     -> AccountId
     -> Token
     -> Integer
     -> m (MarloweData, Tx)
-deposit tx marloweData accountId token amount = do
+deposit tx params marloweData accountId token amount = do
     pubKey <- ownPubKey
-    applyInputs tx marloweData [IDeposit accountId pubKey token amount]
+    applyInputs tx params marloweData [IDeposit accountId (PK pubKey) token amount]
 
 
 {-| Notify a contract -}
@@ -87,9 +89,10 @@ notify :: (
     MonadError WalletAPIError m,
     WalletAPI m)
     => Tx
+    -> MarloweParams
     -> MarloweData
     -> m (MarloweData, Tx)
-notify tx marloweData = applyInputs tx marloweData [INotify]
+notify tx params marloweData = applyInputs tx params marloweData [INotify]
 
 
 {-| Make a 'choice' identified as 'choiceId'. -}
@@ -97,11 +100,13 @@ makeChoice :: (
     MonadError WalletAPIError m,
     WalletAPI m)
     => Tx
+    -> MarloweParams
     -> MarloweData
     -> ChoiceId
     -> Integer
     -> m (MarloweData, Tx)
-makeChoice tx marloweData choiceId choice = applyInputs tx marloweData [IChoice choiceId choice]
+makeChoice tx params marloweData choiceId choice =
+    applyInputs tx params marloweData [IChoice choiceId choice]
 
 
 {-| Create a simple transaction that just evaluates/reduces a contract.
@@ -120,9 +125,10 @@ makeProgress :: (
     MonadError WalletAPIError m,
     WalletAPI m)
     => Tx
+    -> MarloweParams
     -> MarloweData
     -> m (MarloweData, Tx)
-makeProgress tx marloweData = applyInputs tx marloweData []
+makeProgress tx params marloweData = applyInputs tx params marloweData []
 
 
 {-| Apply a list of 'Input' to a Marlowe contract.
@@ -133,12 +139,13 @@ applyInputs :: (
     MonadError WalletAPIError m,
     WalletAPI m)
     => Tx
+    -> MarloweParams
     -> MarloweData
     -> [Input]
     -> m (MarloweData, Tx)
-applyInputs tx marloweData@MarloweData{..} inputs = do
+applyInputs tx params marloweData@MarloweData{..} inputs = do
     let redeemer = mkRedeemer inputs
-        validator = validatorScript marloweCreator
+        validator = validatorScript params
         dataValue = DataValue (PlutusTx.toData marloweData)
         address = scriptAddress validator
     slot <- slot
@@ -160,25 +167,24 @@ applyInputs tx marloweData@MarloweData{..} inputs = do
     let scriptIn = scriptTxIn ref validator redeemer dataValue
     let computedResult = computeTransaction txInput marloweState marloweContract
 
-    (deducedTxOutputs, marloweData) <- case computedResult of
+    ((deducedTxOutputs, dataValues), marloweData) <- case computedResult of
         TransactionOutput {txOutPayments, txOutState, txOutContract} -> do
 
             let marloweData = MarloweData {
-                    marloweCreator,
                     marloweContract = txOutContract,
                     marloweState = txOutState }
 
-            let deducedTxOutputs = case txOutContract of
+            let deducedTxOutputsAndDataValues = case txOutContract of
                     Close -> txPaymentOuts txOutPayments
                     _ -> let
-                        payouts = txPaymentOuts txOutPayments
+                        (payouts, dataValues) = txPaymentOuts txOutPayments
                         totalPayouts = foldMap txOutValue payouts
                         finalBalance = totalIncome P.- totalPayouts
                         dataValue = DataValue (PlutusTx.toData marloweData)
                         scriptOut = scriptTxOut finalBalance validator dataValue
-                        in scriptOut : payouts
+                        in (scriptOut : payouts, dataValue : dataValues)
 
-            return (deducedTxOutputs, marloweData)
+            return (deducedTxOutputsAndDataValues, marloweData)
         Error txError -> throwOtherError (Text.pack $ show txError)
 
 
@@ -190,7 +196,7 @@ applyInputs tx marloweData@MarloweData{..} inputs = do
         slotRange
         (Set.insert scriptIn payment)
         (deducedTxOutputs ++ maybeToList change)
-        [DataValue (PlutusTx.toData marloweData)]
+        dataValues
 
     return (marloweData, tx)
   where
@@ -201,26 +207,60 @@ applyInputs tx marloweData@MarloweData{..} inputs = do
 
     isAddress address (TxOut{txOutAddress}, _) = txOutAddress == address
 
-    txPaymentOuts :: [Payment] -> [TxOut]
-    txPaymentOuts payments = let
-        ps = foldr collectPayments Map.empty payments
-        txOuts = [pubKeyTxOut value pk | (pk, value) <- Map.toList ps]
-        in txOuts
+    rolePayoutScriptAddress :: Address
+    rolePayoutScriptAddress = scriptAddress rolePayoutScript
+
+    txPaymentOuts :: [Payment] -> ([TxOut], [DataValue])
+    txPaymentOuts payments = foldMap paymentToTxOut paymentsByParty
+      where
+        paymentsByParty = Map.toList $ foldr collectPayments Map.empty payments
+
+        paymentToTxOut (party, value) = case party of
+            PK pk  -> ([pubKeyTxOut value pk], [])
+            Role role -> let
+                dataValue = DataValue $ PlutusTx.toData (rolesCurrency params, role)
+                txout = scriptTxOut' value rolePayoutScriptAddress dataValue
+                in ([txout], [dataValue])
 
     collectPayments :: Payment -> Map Party Money -> Map Party Money
     collectPayments (Payment party money) payments = let
-        newValue = case Map.lookup party payments of
-            Just value -> value P.+ money
-            Nothing    -> money
+        newValue = money P.+ P.fromMaybe P.zero (Map.lookup party payments)
         in Map.insert party newValue payments
 
 
+rolePayoutScript :: Validator
+rolePayoutScript = mkValidatorScript ($$(PlutusTx.compile [|| wrapped ||]))
+  where
+    wrapped = Scripts.wrapValidator rolePayoutValidator
+
+
+rolePayoutValidatorHash :: ValidatorHash
+rolePayoutValidatorHash = validatorHash rolePayoutScript
+
+
+{-# INLINABLE rolePayoutValidator #-}
+rolePayoutValidator :: (CurrencySymbol, TokenName) -> () -> PendingTx -> Bool
+rolePayoutValidator (currency, role) _ pendingTx =
+    Val.valueOf (valueSpent pendingTx) currency role P.> 0
+
+
+marloweParams :: CurrencySymbol -> MarloweParams
+marloweParams rolesCurrency = MarloweParams
+    { rolesCurrency = rolesCurrency
+    , rolePayoutScriptHash = rolePayoutValidatorHash }
+
+
+defaultMarloweParams :: MarloweParams
+defaultMarloweParams = marloweParams adaSymbol
+
+
 {-| Generate a validator script for 'creator' PubKey -}
-validatorScript :: PubKey -> Validator
-validatorScript creator = mkValidatorScript ($$(PlutusTx.compile [|| validatorParam ||])
+validatorScript :: MarloweParams -> Validator
+validatorScript params = mkValidatorScript ($$(PlutusTx.compile [|| validatorParam ||])
     `PlutusTx.applyCode`
-        PlutusTx.liftCode creator)
-    where validatorParam k = Scripts.wrapValidator (marloweValidator k)
+        PlutusTx.liftCode params)
+  where
+    validatorParam k = Scripts.wrapValidator (marloweValidator k)
 
 
 {-| Make redeemer script -}

@@ -6,15 +6,14 @@ import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
 import           Data.String
 
-import           Language.Marlowe.Pretty
 import           Language.Marlowe.Semantics
 import qualified Language.PlutusTx.Prelude  as P
 import           Ledger                     (PubKey (..))
 import           Ledger.Ada                 (adaSymbol, adaToken)
 import qualified Ledger.Value               as Val
 
-instance IsString PubKey where
-    fromString = pubKeyFromString
+instance IsString Party where
+    fromString s = Role (fromString s)
 
 instance IsString AccountId where
     fromString s = AccountId 0 (fromString s)
@@ -29,31 +28,31 @@ alicePubKey :: PubKey
 alicePubKey = PubKey "Alice"
 
 aliceAcc :: AccountId
-aliceAcc = AccountId 0 alicePubKey
+aliceAcc = AccountId 0 (PK alicePubKey)
 
 bobPubKey :: PubKey
 bobPubKey = PubKey "Bob"
 
 bobAcc :: AccountId
-bobAcc = AccountId 0 bobPubKey
+bobAcc = AccountId 0 (PK bobPubKey)
 
 carolPubKey :: PubKey
 carolPubKey = PubKey "Carol"
 
 carolAcc :: AccountId
-carolAcc = AccountId 0 carolPubKey
+carolAcc = AccountId 0 (PK carolPubKey)
 
 charliePubKey :: PubKey
 charliePubKey = PubKey "Charlie"
 
 charlieAcc :: AccountId
-charlieAcc = AccountId 0 charliePubKey
+charlieAcc = AccountId 0 (PK charliePubKey)
 
 evePubKey :: PubKey
 evePubKey = PubKey "Eve"
 
 eveAcc :: AccountId
-eveAcc = AccountId 0 evePubKey
+eveAcc = AccountId 0 (PK evePubKey)
 
 
 type AccountsDiff = Map Party Money

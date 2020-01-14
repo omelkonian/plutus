@@ -128,8 +128,10 @@ instance Pretty PubKey where
 pubKeyFromString :: String -> PubKey
 pubKeyFromString = PubKey . LedgerBytes . fromString
 
-instance Read PubKey where
-    readsPrec p x = [(PubKey (LedgerBytes v), s) | (v, s) <- readsPrec p x]
+deriving instance Read PubKey
+
+instance Read LedgerBytes where
+    readsPrec p x = [(fromString lb, s) | (lb, s) <- readsPrec p x]
 
 instance Read Slot where
     readsPrec p x = [(Slot v, s) | (v, s) <- readsPrec p x]
