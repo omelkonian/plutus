@@ -19,7 +19,6 @@ module Ledger.Constraints(
     , hasValidTx
     -- * Ledger transactions (untyped interface)
     , LedgerTxConstraints
-    , toLedgerTx
     , fromLedgerTx
     , toLedgerConstraints
     ) where

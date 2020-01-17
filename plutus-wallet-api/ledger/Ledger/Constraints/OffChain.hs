@@ -15,7 +15,7 @@ import qualified Language.PlutusTx                as PlutusTx
 import           Ledger.Address                   (Address, scriptHashAddress)
 import           Ledger.Constraints.OnChain
 import           Ledger.Constraints.TxConstraints
-import           Ledger.Scripts                   (DataValue (..), dataValueHash)
+import           Ledger.Scripts                   (DataValue (..))
 import           Ledger.Tx                        (Tx (..))
 import qualified Ledger.Tx                        as LTx
 
@@ -24,24 +24,11 @@ type LedgerTxConstraints  = TxConstraints [LTx.TxIn] [LTx.TxOut]
 
 {-# INLINABLE spendInput #-}
 -- | Require the transaction to spend the input
-spendInput :: LTx.TxIn -> LedgerTxConstraints -- applicative f
-spendInput i = (mempty @LedgerTxConstraints) { tcInputs = [i] }
+spendInput :: forall o. Monoid o => LTx.TxIn -> TxConstraints [LTx.TxIn] o
+spendInput i = (mempty @(TxConstraints [LTx.TxIn] o)) { tcInputs = [i] }
 
--- | A ledger transaction that satisfies the constraints (unbalanced and
---   unsigned)
-toLedgerTx :: LedgerTxConstraints -> Tx
-toLedgerTx TxConstraints{tcInputs, tcOutputs, tcForge, tcInterval, tcDataValues} =
-    Tx
-        { txInputs = Set.fromList tcInputs
-        , txOutputs = tcOutputs
-        , txForge = tcForge
-        , txFee = mempty
-        , txValidRange = tcInterval
-        , txSignatures = Map.empty
-        , txData = Map.fromList $ fmap (\ds -> (dataValueHash ds, ds)) tcDataValues
-        }
-
--- | Constraints that are satisfied by the given ledger transaction
+-- | The tightest set of constraints that are satisfied by the given ledger 
+--   transaction
 fromLedgerTx :: Tx -> LedgerTxConstraints
 fromLedgerTx Tx{txInputs, txOutputs, txForge, txValidRange, txSignatures, txData} =
     TxConstraints
@@ -51,7 +38,7 @@ fromLedgerTx Tx{txInputs, txOutputs, txForge, txValidRange, txSignatures, txData
         , tcInterval = txValidRange
         , tcRequiredSignatures = Set.toList (Map.keysSet txSignatures)
         , tcDataValues = snd <$> Map.toList txData
-        , tcValueSpent = mempty
+        , tcValueSpent = foldMap LTx.txOutValue txOutputs
         }
 
 fromOnChainUtxo :: IsData a => Address -> OnChainUtxo a -> LTx.TxOut

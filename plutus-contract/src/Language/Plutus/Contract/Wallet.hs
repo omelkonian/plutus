@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
 -- | Turn 'LedgerTxConstraints' values into transactions using the
@@ -16,33 +17,34 @@ module Language.Plutus.Contract.Wallet(
 
 import           Control.Lens
 import           Control.Monad.Except
-import qualified Control.Monad.Freer         as Eff
-import qualified Control.Monad.Freer.Error   as Eff
-import           Data.Bifunctor              (second)
-import           Data.Map                    (Map)
-import qualified Data.Map                    as Map
-import           Data.Maybe                  (fromMaybe)
-import qualified Data.Set                    as Set
-import           Data.String                 (IsString (fromString))
-import           Data.Text.Prettyprint.Doc   (Pretty (..))
-import           Language.Plutus.Contract.Tx (LedgerTxConstraints)
-import qualified Language.PlutusTx.Numeric   as N
-import qualified Language.PlutusTx.Prelude   as P
-import qualified Ledger                      as L
-import qualified Ledger.AddressMap           as AM
-import qualified Ledger.Constraints          as C
-import           Ledger.Tx                   (Tx, TxOut, TxOutRef)
-import qualified Ledger.Tx                   as Tx
-import           Ledger.Value                (Value)
-import qualified Ledger.Value                as Value
-import           Wallet.API                  (MonadWallet, PubKey, WalletAPIError)
-import qualified Wallet.API                  as WAPI
-import           Wallet.Emulator             (Wallet)
-import qualified Wallet.Emulator             as E
+import qualified Control.Monad.Freer              as Eff
+import qualified Control.Monad.Freer.Error        as Eff
+import           Data.Bifunctor                   (second)
+import           Data.Map                         (Map)
+import qualified Data.Map                         as Map
+import           Data.Maybe                       (fromMaybe)
+import qualified Data.Set                         as Set
+import           Data.String                      (IsString (fromString))
+import           Data.Text.Prettyprint.Doc        (Pretty (..))
+import           Language.Plutus.Contract.Tx      (LedgerTxConstraints)
+import qualified Language.PlutusTx.Numeric        as N
+import qualified Language.PlutusTx.Prelude        as P
+import qualified Ledger                           as L
+import qualified Ledger.AddressMap                as AM
+import qualified Ledger.Constraints               as C
+import           Ledger.Constraints.TxConstraints (TxConstraints (..))
+import           Ledger.Tx                        (Tx (..), TxOut, TxOutRef)
+import qualified Ledger.Tx                        as Tx
+import           Ledger.Value                     (Value)
+import qualified Ledger.Value                     as Value
+import           Wallet.API                       (MonadWallet, PubKey, WalletAPIError)
+import qualified Wallet.API                       as WAPI
+import           Wallet.Emulator                  (Wallet)
+import qualified Wallet.Emulator                  as E
 
 {- Note [Submitting transactions from Plutus contracts]
 
-To turn an 'LedgerTxConstraints' value into a valid transaction that can be 
+To turn an 'LedgerTxConstraints' value into a valid transaction that can be
 submitted to the network, the contract backend needs to
 
 * Balance it.
@@ -54,7 +56,7 @@ submitted to the network, the contract backend needs to
   the total value of 'tcOutputs', then one or more public key inputs need
   to be added (and potentially some outputs for the change).
   If the total value spent is less than what's specified in the 'tcValueSpent'
-  field then the missing value needs to be added to both sides, inputs and 
+  field then the missing value needs to be added to both sides, inputs and
   outputs.
 
 * Compute fees.
@@ -121,7 +123,7 @@ balanceTx
     -- ^ The unbalanced transaction
     -> m Tx
 balanceTx utxo pk constraints = do
-    let tx0 = C.toLedgerTx constraints
+    let tx0 = toLedgerTx constraints
         tx  = addMissingValueMoved pk (C.tcValueSpent constraints) tx0
     (neg, pos) <- Value.split <$> computeBalance tx
 
@@ -202,3 +204,17 @@ signWallets :: [Wallet] -> SigningProcess
 signWallets wallets = SigningProcess $ \_ tx ->
     let signingKeys = E.walletPrivKey <$> wallets in
     pure (foldr Tx.addSignature tx signingKeys)
+
+-- | A ledger transaction with the inputs, outputs, forge field, validity
+--   interval and data values as specified in the constraints.
+toLedgerTx :: LedgerTxConstraints -> Tx
+toLedgerTx TxConstraints{tcInputs, tcOutputs, tcForge, tcInterval, tcDataValues} =
+    Tx
+        { txInputs = Set.fromList tcInputs
+        , txOutputs = tcOutputs
+        , txForge = tcForge
+        , txFee = mempty
+        , txValidRange = tcInterval
+        , txSignatures = Map.empty
+        , txData = Map.fromList $ fmap (\ds -> (L.dataValueHash ds, ds)) tcDataValues
+        }
