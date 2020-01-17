@@ -536,7 +536,7 @@ handleBlockchainEventsTimeout (MaxIterations i) wallet = go 0 where
             hks <- getHooks wallet
             if waitingForBlockchainActions hks
                 then do
-                    submitLedgerTxConstraintsns wallet
+                    submitLedgerTxConstraints wallet
                     handleUtxoQueries wallet
                     handleOwnPubKeyQueries wallet
                     go (j + 1)
@@ -545,7 +545,7 @@ handleBlockchainEventsTimeout (MaxIterations i) wallet = go 0 where
 -- | Submit the wallet's pending transactions to the blockchain
 --   and inform all wallets about new transactions and respond to
 --   UTXO queries
-submitLedgerTxConstraintsns
+submitLedgerTxConstraints
     :: ( MonadEmulator (TraceError e) m
        , HasWatchAddress s
        , HasWriteTx s
@@ -553,7 +553,7 @@ submitLedgerTxConstraintsns
        )
     => Wallet
     -> ContractTrace s e m a ()
-submitLedgerTxConstraintsns wllt = do
+submitLedgerTxConstraints wllt = do
     utxs <- unbalancedTransactions wllt
     traverse_ (submitUnbalancedTx wllt >=> traverse_ addTxEvents) utxs
 
