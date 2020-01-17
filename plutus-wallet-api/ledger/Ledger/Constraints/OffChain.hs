@@ -27,7 +27,7 @@ type LedgerTxConstraints  = TxConstraints [LTx.TxIn] [LTx.TxOut]
 spendInput :: forall o. Monoid o => LTx.TxIn -> TxConstraints [LTx.TxIn] o
 spendInput i = (mempty @(TxConstraints [LTx.TxIn] o)) { tcInputs = [i] }
 
--- | The tightest set of constraints that are satisfied by the given ledger 
+-- | The tightest set of constraints that are satisfied by the given ledger
 --   transaction
 fromLedgerTx :: Tx -> LedgerTxConstraints
 fromLedgerTx Tx{txInputs, txOutputs, txForge, txValidRange, txSignatures, txData} =
