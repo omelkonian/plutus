@@ -150,7 +150,7 @@ instance Ord a => JoinSemiLattice (Interval a) where
 
 instance Ord a => BoundedJoinSemiLattice (Interval a) where
     {-# INLINABLE bottom #-}
-    bottom = never' ()
+    bottom = never
 
 instance Ord a => MeetSemiLattice (Interval a) where
     {-# INLINABLE (/\) #-}
@@ -158,7 +158,7 @@ instance Ord a => MeetSemiLattice (Interval a) where
 
 instance Ord a => BoundedMeetSemiLattice (Interval a) where
     {-# INLINABLE top #-}
-    top = always' ()
+    top = always
 
 instance Eq a => Eq (Interval a) where
     {-# INLINABLE (==) #-}
@@ -190,20 +190,12 @@ to s = Interval (LowerBound NegInf True) (upperBound s)
 {-# INLINABLE always #-}
 -- | An 'Interval' that covers every slot.
 always :: Interval a
-always = always' ()
-
-{-# INLINABLE always' #-}
-always' :: () -> Interval a
-always' _ = (Interval (LowerBound NegInf True) (UpperBound PosInf True) :: Interval a)
+always = Interval (LowerBound NegInf True) (UpperBound PosInf True)
 
 {-# INLINABLE never #-}
 -- | An 'Interval' that is empty.
 never :: Interval a
-never = never' ()
-
-{-# INLINABLE never' #-}
-never' :: () -> Interval a
-never' _ = (Interval (LowerBound NegInf True) (UpperBound PosInf True) :: Interval a)
+never = Interval (LowerBound NegInf True) (UpperBound PosInf True) :: Interval a
 
 {-# INLINABLE member #-}
 -- | Check whether a value is in an interval.
