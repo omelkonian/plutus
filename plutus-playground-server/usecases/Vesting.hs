@@ -157,7 +157,7 @@ vestingContract vesting = vest <|> retrieve
             Dead  -> pure ()
 
 payIntoContract :: VestingParams -> Value -> LedgerTxConstraints
-payIntoContract vp value = payToScript value (contractAddress vp) unitData
+payIntoContract vp value = payToScript value (Scripts.scriptHash $ scriptInstance vp) unitData
 
 vestFundsC
     :: ( HasWriteTx s
