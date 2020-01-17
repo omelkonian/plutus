@@ -51,7 +51,7 @@ fromLedgerTx Tx{txInputs, txOutputs, txForge, txValidRange, txSignatures, txData
         , tcInterval = txValidRange
         , tcRequiredSignatures = Set.toList (Map.keysSet txSignatures)
         , tcDataValues = snd <$> Map.toList txData
-        , tcValueMoved = mempty
+        , tcValueSpent = mempty
         }
 
 fromOnChainUtxo :: IsData a => Address -> OnChainUtxo a -> LTx.TxOut

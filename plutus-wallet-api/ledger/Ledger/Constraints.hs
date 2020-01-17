@@ -6,7 +6,7 @@ module Ledger.Constraints(
     , payToScript
     , payToPubKey
     , forgeValue
-    , moveValue
+    , spendValue
     , validIn
     , signedBy
     , spendInput

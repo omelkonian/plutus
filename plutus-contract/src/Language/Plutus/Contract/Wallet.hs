@@ -40,8 +40,41 @@ import qualified Wallet.API                  as WAPI
 import           Wallet.Emulator             (Wallet)
 import qualified Wallet.Emulator             as E
 
+{- Note [Submitting transactions from Plutus contracts]
+
+To turn an 'LedgerTxConstraints' value into a valid transaction that can be 
+submitted to the network, the contract backend needs to
+
+* Balance it.
+  If the total value of 'tcInputs' + the 'tcForge' field is
+  greater than the total value of 'tcOutputs', then one or more public key
+  outputs need to be added. How many and what addresses they are is up
+  to the wallet (probably configurable).
+  If the total balance 'tcInputs' + the 'tcForge' field is less than
+  the total value of 'tcOutputs', then one or more public key inputs need
+  to be added (and potentially some outputs for the change).
+  If the total value spent is less than what's specified in the 'tcValueSpent'
+  field then the missing value needs to be added to both sides, inputs and 
+  outputs.
+
+* Compute fees.
+  Once the final size of the transaction is known, the fees for the transaction
+  can be computed. The transaction fee needs to be paid for with additional
+  inputs so I assume that this step and the previous step will be combined.
+
+  Also note that even if the 'LedgerTxConstraints' that we get from the contract
+  endpoint happens to be balanced already, we still need to add fees to it. So
+  we can't skip the balancing & fee computation step.
+
+* Sign it.
+  The signing process needs to provide signatures for all public key
+  inputs in the balanced transaction, and for all public keys in the
+  'utxRequiredSignatures' field.
+
+-}
+
 -- | Balance an unbalanced transaction in a 'MonadWallet' context. See note
---   [Unbalanced transactions].
+--   [Submitting transactions from Plutus contracts].
 balanceWallet
     :: (WAPI.MonadWallet m)
     => LedgerTxConstraints
@@ -89,7 +122,7 @@ balanceTx
     -> m Tx
 balanceTx utxo pk constraints = do
     let tx0 = C.toLedgerTx constraints
-        tx  = addMissingValueMoved pk (C.tcValueMoved constraints) tx0
+        tx  = addMissingValueMoved pk (C.tcValueSpent constraints) tx0
     (neg, pos) <- Value.split <$> computeBalance tx
 
     tx' <- if Value.isZero pos

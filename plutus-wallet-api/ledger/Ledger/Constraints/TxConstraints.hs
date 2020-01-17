@@ -52,11 +52,11 @@ data TxConstraints i o =
         -- ^ Validity interval of this 'TxConstraints'
         , tcRequiredSignatures :: [PubKey]
         -- ^ Signatories of the transaction
-        , tcValueMoved         :: Value
-        -- ^ The minimum size of the transaction's left and right side. The
+        , tcValueSpent         :: Value
+        -- ^ The minimum value that needs to be spent by the transaction. The
         --   purpose of this field is to enable proof of ownership for tokens
         --   (a transaction proves ownership of a token if the value consumed
-        --   and spent by it includes the token. The value in the '_valueMoved'
+        --   and spent by it includes the token. The value in the 'tcValueSpent'
         --   field will be paid from the wallet's own funds back to an address
         --   owned by the wallet)
         } deriving stock (Haskell.Functor, Haskell.Eq, Haskell.Show, Generic)
@@ -77,7 +77,7 @@ instance (Semigroup i, Semigroup o) => Semigroup (TxConstraints i o) where
             , tcForge = tcForge l <> tcForge r
             , tcInterval = tcInterval l /\ tcInterval r
             , tcRequiredSignatures = tcRequiredSignatures l <> tcRequiredSignatures r
-            , tcValueMoved = tcValueMoved l <> tcValueMoved r
+            , tcValueSpent = tcValueSpent l <> tcValueSpent r
             , tcInputs = tcInputs l <> tcInputs r
             }
 
@@ -89,7 +89,7 @@ instance (Haskell.Semigroup i, Haskell.Semigroup o) => Haskell.Semigroup (TxCons
             , tcForge = tcForge l Haskell.<> tcForge r
             , tcInterval = tcInterval l /\ tcInterval r
             , tcRequiredSignatures = tcRequiredSignatures l Haskell.<> tcRequiredSignatures r
-            , tcValueMoved = tcValueMoved l Haskell.<> tcValueMoved r
+            , tcValueSpent = tcValueSpent l Haskell.<> tcValueSpent r
             , tcInputs = tcInputs l Haskell.<> tcInputs r
             }
 
@@ -110,10 +110,10 @@ instance (Eq o, Eq i) => Eq (TxConstraints i o) where
         && tcForge l == tcForge r
         && tcInterval l == tcInterval r
         && tcRequiredSignatures l == tcRequiredSignatures r
-        && tcValueMoved l == tcValueMoved r
+        && tcValueSpent l == tcValueSpent r
 
 instance (Pretty i, Pretty o) => Pretty (TxConstraints [i] [o]) where
-    pretty TxConstraints{tcOutputs, tcDataValues, tcForge, tcInterval, tcRequiredSignatures, tcValueMoved, tcInputs} =
+    pretty TxConstraints{tcOutputs, tcDataValues, tcForge, tcInterval, tcRequiredSignatures, tcValueSpent, tcInputs} =
         vsep
             [ hang 2 (vsep ("inputs:" : fmap pretty tcInputs))
             , hang 2 (vsep ("outputs:" : fmap pretty tcOutputs))
@@ -121,7 +121,7 @@ instance (Pretty i, Pretty o) => Pretty (TxConstraints [i] [o]) where
             , hang 2 (vsep ["value forged:", pretty tcForge])
             , hang 2 (vsep ["validity range:", viaShow tcInterval])
             , hang 2 (vsep ("required signatures:" : fmap pretty tcRequiredSignatures))
-            , hang 2 (vsep ["value moved:", pretty tcValueMoved])
+            , hang 2 (vsep ["value moved:", pretty tcValueSpent])
             ]
 
 {-# INLINABLE validIn #-}
@@ -166,9 +166,9 @@ payToPubKey v pk = (mempty @(TxConstraints i [o])) { tcOutputs = [pubKeyUtxo pk 
 forgeValue :: forall i o. (Monoid i, Monoid o) => Value -> TxConstraints i o
 forgeValue vl = (mempty @(TxConstraints i o)) { tcForge = vl }
 
--- | Requirement to move (produce and/or spend) the given value
-moveValue :: forall i o. (Monoid i, Monoid o) => Value -> TxConstraints i o
-moveValue vl = (mempty @(TxConstraints i o)) { tcValueMoved = vl }
+-- | Requirement to spend the given value
+spendValue :: forall i o. (Monoid i, Monoid o) => Value -> TxConstraints i o
+spendValue vl = (mempty @(TxConstraints i o)) { tcValueSpent = vl }
 
 {-# INLINABLE hasValidTx #-}
 -- | Is there a valid transaction that satisfies the constraints? (ignoring
@@ -179,11 +179,11 @@ hasValidTx TxConstraints{tcInterval} = not (isEmpty tcInterval)
 -- | Can the constraints be satisfied by a transaction with no
 --   inputs and outputs?
 modifiesUtxoSet :: TxConstraints [i] [o] -> Bool
-modifiesUtxoSet TxConstraints{tcForge, tcInputs, tcOutputs, tcValueMoved} =
+modifiesUtxoSet TxConstraints{tcForge, tcInputs, tcOutputs, tcValueSpent} =
     not (isZero tcForge)
     || not (null tcInputs)
     || not (null tcOutputs)
-    || not (isZero tcValueMoved)
+    || not (isZero tcValueSpent)
 
 PlutusTx.makeIsData ''TxConstraints
 PlutusTx.makeLift ''TxConstraints

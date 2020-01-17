@@ -137,7 +137,7 @@ transition (state, currentVal) input = case (state, input) of
     (Locked tn currentSecret, Guess theGuess nextSecret takenOut)
         | checkGuess currentSecret theGuess ->
         Just $ payToOwnAddress (currentVal - takenOut) (Locked tn nextSecret)
-                <> moveValue (unGameToken tn)
+                <> spendValue (unGameToken tn)
     _ -> Nothing
 
 {-# INLINABLE machine #-}

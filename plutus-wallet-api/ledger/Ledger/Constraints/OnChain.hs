@@ -90,11 +90,11 @@ checkOnChainTxOut ptx =
 {-# INLINABLE checkPendingTx #-}
 -- | Does the 'PendingTx' satisfy the constraints?
 checkPendingTx :: (IsData a) => PendingTxConstraints a -> PendingTx -> Bool
-checkPendingTx TxConstraints{tcOutputs, tcDataValues, tcForge, tcInterval, tcRequiredSignatures, tcValueMoved} ptx =
+checkPendingTx TxConstraints{tcOutputs, tcDataValues, tcForge, tcInterval, tcRequiredSignatures, tcValueSpent} ptx =
     let outputsOK = all (checkOnChainTxOut ptx) tcOutputs
         dataValuesOK = all (`elem` fmap snd (pendingTxData ptx)) tcDataValues
         forgeOK = tcForge == pendingTxForge ptx
-        valueMovedOK = tcValueMoved `leq` V.valueSpent ptx
+        valueMovedOK = tcValueSpent `leq` V.valueSpent ptx
         intervalOK = tcInterval `contains` pendingTxValidRange ptx
         signaturesOK = all (V.txSignedBy ptx) tcRequiredSignatures
     in traceIfFalseH "checkPendingTx failed - outputs not OK" outputsOK
