@@ -315,8 +315,8 @@ verifyOracle Future{ftPriceOracle} OracleValue{ovSignature, ovSlot, ovValue} =
     if ovSignature == ftPriceOracle then Just (ovSlot, ovValue) else Nothing
 
 {-# INLINABLE transition #-}
-transition :: Future -> FutureAccounts -> FutureState -> FutureAction -> Value -> Maybe (PendingTxConstraints FutureState)
-transition future owners s i currentValue = 
+transition :: Future -> FutureAccounts -> (FutureState, Value) -> FutureAction -> Maybe (PendingTxConstraints FutureState)
+transition future owners (s, currentValue) i = 
     let Future{ftDeliveryDate} = future in
         case (s, i) of
             (Running accounts, AdjustMargin role topUp) ->

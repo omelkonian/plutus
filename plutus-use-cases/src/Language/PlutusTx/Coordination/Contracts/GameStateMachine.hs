@@ -129,8 +129,8 @@ data GameInput =
     deriving (Show)
 
 {-# INLINABLE transition #-}
-transition :: GameState -> GameInput -> Value -> Maybe (PendingTxConstraints GameState)
-transition state input currentVal = case (state, input) of
+transition :: (GameState, Value) -> GameInput -> Maybe (PendingTxConstraints GameState)
+transition (state, currentVal) input = case (state, input) of
     (Initialised s, ForgeToken tk) -> 
         Just $ payToOwnAddress currentVal (Locked tk s)
                 <> forgeValue (unGameToken tk)

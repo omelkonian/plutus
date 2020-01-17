@@ -176,8 +176,8 @@ valuePaid :: Payment -> PendingTx -> Bool
 valuePaid (Payment vl pk _) ptx = vl == (Validation.valuePaidTo ptx pk)
 
 {-# INLINABLE transition #-}
-transition :: Params -> State -> Input -> Value -> Maybe (PendingTxConstraints State)
-transition params s i currentValue = case (s, i) of
+transition :: Params -> (State, Value) -> Input -> Maybe (PendingTxConstraints State)
+transition params (s, currentValue) i = case (s, i) of
     (Holding, ProposePayment pmt)
         | isValidProposal currentValue pmt ->
             Just $ payToOwnAddress currentValue (CollectingSignatures pmt [])

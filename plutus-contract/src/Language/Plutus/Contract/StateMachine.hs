@@ -55,7 +55,7 @@ import qualified Wallet.Typed.StateMachine         as SM
 --   an allocation function
 --
 -- In many cases it is enough to define the transition function
--- @t :: state -> input -> Value -> Maybe (PendingTxConstraints state)@ and use
+-- @t :: (state, Value) -> input -> Maybe (PendingTxConstraints state)@ and use
 -- 'mkStateMachine' and 'mkStateMachineClient' to get the client.
 -- You can then use 'runInitialise' and 'runStep' to initialise and transition
 -- the state machine. 'runStep' gets the current state from the utxo set and
@@ -178,7 +178,7 @@ mkStep client@StateMachineClient{scInstance} input = do
 
     let typedTxIn = Typed.makeTypedScriptTxIn @(SM.StateMachine state input) validatorInstance input txOutRef
         balance = Typed.txInValue typedTxIn
-    typedTxConstraints <- case smTransition currentState input balance >>= toTypedTxConstraints validatorInstance of
+    typedTxConstraints <- case smTransition (currentState, balance) input >>= toTypedTxConstraints validatorInstance of
         Just s  -> pure s
         Nothing -> throwing _InvalidTransition (currentState, input)
 

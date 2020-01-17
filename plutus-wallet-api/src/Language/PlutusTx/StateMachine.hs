@@ -31,7 +31,7 @@ import           Ledger.Validation         (PendingTx, pendingTxInValue, pending
 -- of the transition in the context of the current transaction.
 data StateMachine s i = StateMachine {
       -- | The transition function of the state machine. 'Nothing' indicates an invalid transition from the current state.
-      smTransition :: s -> i -> Value -> Maybe (PendingTxConstraints s),
+      smTransition :: (s, Value) -> i -> Maybe (PendingTxConstraints s),
       -- | The condition checking function. Can be used to perform 
       --   checks on the pending transaction that aren't covered by the 
       --   constraints. 'smCheck' is always run in addition to checking the
@@ -41,7 +41,7 @@ data StateMachine s i = StateMachine {
 
 -- | A state machine that does not perform any additional checks on the
 --   'PendingTx' (beyond enforcing the constraints)
-mkStateMachine :: (s -> i -> Value -> Maybe (PendingTxConstraints s)) -> StateMachine s i
+mkStateMachine :: ((s, Value) -> i -> Maybe (PendingTxConstraints s)) -> StateMachine s i
 mkStateMachine transition =
     StateMachine
         { smTransition = transition
@@ -68,7 +68,7 @@ mkValidator :: (PlutusTx.IsData s) => StateMachine s i -> ValidatorType (StateMa
 mkValidator (StateMachine step check) currentState input ptx =
     let vl = pendingTxInValue (pendingTxIn ptx)
         checkOk = traceIfFalseH "State transition invalid - checks failed" (check currentState input ptx)
-        stateAndOutputsOk = case step currentState input vl of
+        stateAndOutputsOk = case step (currentState, vl) input of
             Just constraints ->
                 traceIfFalseH "State transition invalid - constraints not satisfied by PendingTx" (checkPendingTx constraints ptx)
             Nothing -> traceH "State transition invalid - input is not a valid transition at the current state" False
