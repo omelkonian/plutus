@@ -63,7 +63,7 @@ machineAddress :: StateMachineInstance s i -> Address
 machineAddress = scriptAddress . validatorInstance
 
 {-# INLINABLE mkValidator #-}
--- | Turn a transition function @s -> i -> Value -> Maybe (TxConstraints s)@ into a validator script.
+-- | Turn a state machine into a validator script.
 mkValidator :: (PlutusTx.IsData s) => StateMachine s i -> ValidatorType (StateMachine s i)
 mkValidator (StateMachine step check) currentState input ptx =
     let vl = pendingTxInValue (pendingTxIn ptx)
