@@ -21,7 +21,6 @@ import qualified Language.PlutusTx                     as PlutusTx
 import           Ledger                                (Address)
 import qualified Ledger                                as Ledger
 import qualified Ledger.Ada                            as Ada
-import           Ledger.Constraints
 import           Prelude                               hiding (not)
 import qualified Wallet.Emulator                       as EM
 
