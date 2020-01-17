@@ -12,7 +12,6 @@ import qualified Ledger.Constraints       as Constraints
 import qualified Ledger.Typed.Constraints as Constraints
 
 import           Ledger                   (TxOutRef, TxOutTx)
-import qualified Ledger                   as L
 import           Ledger.AddressMap        (AddressMap)
 import qualified Ledger.Typed.Scripts     as Scripts
 import qualified Ledger.Typed.Tx          as Typed
@@ -32,11 +31,11 @@ collectFromScriptFilter ::
     -> Constraints.LedgerTxConstraints
 collectFromScriptFilter flt am si red =
     let typed = Typed.collectFromScriptFilter flt am si red
-        untypedTx :: L.Tx
+        untypedTx :: Constraints.LedgerTxConstraints
         -- Need to match to get the existential type out
         untypedTx = case typed of
-            (Typed.TypedTxSomeIns tx) -> Typed.toUntypedTx tx
-    in Constraints.fromLedgerTx untypedTx
+            (Constraints.TypedTxSomeIns tx) -> Constraints.toUntypedLedgerConstraints tx
+    in untypedTx
 
 -- | A version of 'collectFromScript' that selects all outputs
 --   at the address

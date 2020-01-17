@@ -29,8 +29,6 @@ data SMError s i = InvalidTransition s i
 makeClassyPrisms ''SMError
 
 type OnChainState s i = (Typed.TypedScriptTxOut (SM.StateMachine s i), Typed.TypedScriptTxOutRef (SM.StateMachine s i))
-type SteppingTx s i = Typed.TypedTx '[SM.StateMachine s i] '[SM.StateMachine s i]
-type HaltingTx s i = Typed.TypedTx '[SM.StateMachine s i] '[]
 
 getStates
     :: forall s i

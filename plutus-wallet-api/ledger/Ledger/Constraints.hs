@@ -16,7 +16,7 @@ module Ledger.Constraints(
     -- * Queries
     , checkPendingTx
     , modifiesUtxoSet
-    , hasValidTx
+    , isSatisfiable
     -- * Ledger transactions (untyped interface)
     , LedgerTxConstraints
     , fromLedgerTx

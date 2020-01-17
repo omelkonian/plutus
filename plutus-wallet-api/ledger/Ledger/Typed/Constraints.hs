@@ -15,10 +15,17 @@ module Ledger.Typed.Constraints(
   , Ledger.Typed.Constraints.addTypedTxIn
   , Ledger.Typed.Constraints.addTypedTxOut
   , toUntypedLedgerConstraints
+  -- * 'TypedTxConstraints' with either side existentially quantified
+  , TypedTxSomeIns(..)
+  , TypedTxSomeOuts(..)
+  , addSomeTypedTxIn
+  , addSomeTypedTxOut
+  , addManyTypedTxIns
   ) where
 
 import           Data.Either                 (partitionEithers)
 import           Data.Kind
+import           Data.List                   (foldl')
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 
@@ -65,6 +72,37 @@ addTypedTxOut'
   -> TypedOrUntypedTxOuts (out ': outs)
 addTypedTxOut' txo t =
   t { totTypedTxOuts = HConsF txo (totTypedTxOuts t) }
+
+data TypedTxSomeIns (outs :: [Type]) =
+  forall ins. TypedTxSomeIns (TypedTxConstraints ins outs)
+
+addSomeTypedTxIn
+  :: forall (outs :: [Type]) (newIn :: *)
+  . TypedScriptTxIn newIn
+  -> TypedTxSomeIns outs
+  -> TypedTxSomeIns outs
+addSomeTypedTxIn inn (TypedTxSomeIns tx) =
+  TypedTxSomeIns $ addTypedTxIn inn tx
+
+-- | Adds many homogeneous 'TypedScriptTxIn' to a 'TypedTx'.
+addManyTypedTxIns
+    :: forall (ins :: [Type]) (outs :: [Type]) (newIn :: Type)
+    . [TypedScriptTxIn newIn]
+    -> TypedTxConstraints ins outs
+    -> TypedTxSomeIns outs
+addManyTypedTxIns ins tx = foldl' (\someTx inn -> addSomeTypedTxIn inn someTx) (TypedTxSomeIns tx) ins
+
+-- | A wrapper around a 'TypedTx' that hides the output list type as an existential parameter.
+data TypedTxSomeOuts (ins :: [Type]) = forall outs . TypedTxSomeOuts (TypedTxConstraints ins outs)
+
+-- | Add a 'TypedScriptTxOut' to a 'TypedTxSomeOuts'. Note that we do not have to track
+-- the output connection types explicitly.
+addSomeTypedTxOut
+    :: forall (ins :: [Type]) (newOut :: *)
+    . TypedScriptTxOut newOut
+    -> TypedTxSomeOuts ins
+    -> TypedTxSomeOuts ins
+addSomeTypedTxOut out (TypedTxSomeOuts tx) = TypedTxSomeOuts $ addTypedTxOut out tx
 
 untypedOutputs :: forall outs. TypedOrUntypedTxOuts outs -> [TxOut]
 untypedOutputs TypedOrUntypedTxOuts{totTypedTxOuts, totOtherOuts} =

@@ -36,8 +36,7 @@ import           Ledger.Value                (Value, isZero)
 
 import qualified Prelude                     as Haskell
 
--- | Restrictions placed on the allocation of funds to outputs of the state
---   machine transition transaction.
+-- | Restrictions placed on the allocation of funds to outputs of transactions.
 data TxConstraints i o =
     TxConstraints
         { tcOutputs            :: o
@@ -170,11 +169,11 @@ forgeValue vl = (mempty @(TxConstraints i o)) { tcForge = vl }
 spendValue :: forall i o. (Monoid i, Monoid o) => Value -> TxConstraints i o
 spendValue vl = (mempty @(TxConstraints i o)) { tcValueSpent = vl }
 
-{-# INLINABLE hasValidTx #-}
+{-# INLINABLE isSatisfiable #-}
 -- | Is there a valid transaction that satisfies the constraints? (ignoring
 --   the inputs and outputs)
-hasValidTx :: TxConstraints i o -> Bool
-hasValidTx TxConstraints{tcInterval} = not (isEmpty tcInterval)
+isSatisfiable :: TxConstraints i o -> Bool
+isSatisfiable TxConstraints{tcInterval} = not (isEmpty tcInterval)
 
 -- | Can the constraints be satisfied by a transaction with no
 --   inputs and outputs?

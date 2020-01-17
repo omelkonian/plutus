@@ -20,7 +20,7 @@ module Language.Plutus.Contract.Tx(
     , payToOwnAddress
     , includeDataValue
     , modifiesUtxoSet
-    , hasValidTx
+    , isSatisfiable
     -- * Constructing inputs
     , Tx.pubKeyTxIn
     , Tx.scriptTxIn
